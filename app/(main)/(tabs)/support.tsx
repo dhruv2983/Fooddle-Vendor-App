@@ -19,7 +19,8 @@ const SupportScreen = () => {
     fetchTickets,
     createTicket,
     isCreating,
-    categories
+    categories,
+    priorities
   } = useSupportStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -27,8 +28,8 @@ const SupportScreen = () => {
   const [ticketForm, setTicketForm] = useState({
     title: '',
     description: '',
-    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
-    category: 'technical' as TicketCategory,
+    priority: 'low' as 'low' | 'medium' | 'high' | 'urgent',
+    category: 'general' as TicketCategory,
   });
   const [validationErrors, setValidationErrors] = useState({
     title: '',
@@ -60,12 +61,6 @@ const SupportScreen = () => {
     }
   }, []); // fetchTickets is stable
 
-  const priorityOptions = [
-    { value: 'low', label: 'Low', color: theme.colors.info },
-    { value: 'medium', label: 'Medium', color: theme.colors.warning },
-    { value: 'high', label: 'High', color: theme.colors.danger },
-    { value: 'urgent', label: 'Urgent', color: '#FF0000' },
-  ];
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -89,19 +84,22 @@ const SupportScreen = () => {
   };
 
   const getPriorityColor = (priority: string) => {
-    const option = priorityOptions.find(opt => opt.value === priority);
+    const option = priorities.find(opt => opt.value === priority);
     return option?.color || theme.colors.muted;
   };
 
   const validateTicketForm = () => {
-    const titleValidation = validateRequired(ticketForm.title, 'Ticket title');
-    const descriptionValidation = validateRequired(ticketForm.description, 'Description');
+    // API requires title to be at least 5 characters
+    const titleValidation = validateRequired(ticketForm.title, 'Ticket title', 5);
+    // API requires description to be at least 10 characters (reasonable assumption)
+    const descriptionValidation = validateRequired(ticketForm.description, 'Description', 10);
 
-    setValidationErrors({
+    const errors = {
       title: titleValidation.isValid ? '' : titleValidation.error || '',
       description: descriptionValidation.isValid ? '' : descriptionValidation.error || '',
-    });
+    };
 
+    setValidationErrors(errors);
     return titleValidation.isValid && descriptionValidation.isValid;
   };
 
@@ -110,25 +108,41 @@ const SupportScreen = () => {
       return;
     }
 
-    try {
-      await createTicket({
-        title: ticketForm.title.trim(),
-        description: ticketForm.description.trim(),
-        priority: ticketForm.priority,
-        category: ticketForm.category,
-      });
+    const ticketData = {
+      title: ticketForm.title.trim(),
+      description: ticketForm.description.trim(),
+      priority: ticketForm.priority,
+      category: ticketForm.category,
+    };
 
+    try {
+      await createTicket(ticketData);
       Alert.alert('Success', 'Your support ticket has been created successfully!');
       setShowCreateModal(false);
-      setTicketForm({ title: '', description: '', priority: 'medium', category: 'technical' });
+      setTicketForm({ title: '', description: '', priority: 'low', category: 'general' });
       setValidationErrors({ title: '', description: '' });
-    } catch {
-      Alert.alert('Error', 'Failed to create ticket. Please try again.');
+    } catch (error) {
+      // Try to parse API error for better user feedback
+      let errorMessage = 'Failed to create ticket. Please try again.';
+      
+      if (error?.message) {
+        try {
+          const apiError = JSON.parse(error.message);
+          if (apiError.detail) {
+            errorMessage = apiError.detail;
+          }
+        } catch (parseError) {
+          // If not JSON, use the message as is
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
   const openCreateModal = () => {
-    setTicketForm({ title: '', description: '', priority: 'medium', category: 'technical' });
+    setTicketForm({ title: '', description: '', priority: 'low', category: 'general' });
     setValidationErrors({ title: '', description: '' });
     setShowCreateModal(true);
   };
@@ -159,58 +173,60 @@ const SupportScreen = () => {
   );
 
   const CategorySelector = () => (
-    <View style={styles.priorityContainer}>
-      <ThemedText variant="subtitle" style={styles.priorityLabel}>
+    <View style={styles.selectorContainer}>
+      <ThemedText variant="subtitle" style={styles.selectorLabel}>
         Category
       </ThemedText>
-      <View style={styles.priorityOptions}>
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category.value}
-            style={[
-              styles.priorityOption,
-              ticketForm.category === category.value && styles.priorityOptionSelected,
-              { borderColor: theme.colors.primary }
-            ]}
-            onPress={() => setTicketForm(prev => ({ ...prev, category: category.value }))}
-          >
-            <ThemedText style={[
-              styles.priorityOptionText,
-              ticketForm.category === category.value && { color: theme.colors.primary }
-            ]}>
-              {category.label}
-            </ThemedText>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectorScroll}>
+        <View style={styles.selectorOptions}>
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category.value}
+              style={[
+                styles.selectorOption,
+                ticketForm.category === category.value && styles.selectorOptionSelected,
+              ]}
+              onPress={() => setTicketForm(prev => ({ ...prev, category: category.value }))}
+            >
+              <ThemedText style={[
+                styles.selectorOptionText,
+                ticketForm.category === category.value && styles.selectorOptionTextSelected
+              ]}>
+                {category.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 
   const PrioritySelector = () => (
-    <View style={styles.priorityContainer}>
-      <ThemedText variant="subtitle" style={styles.priorityLabel}>
-        Priority Level
+    <View style={styles.selectorContainer}>
+      <ThemedText variant="subtitle" style={styles.selectorLabel}>
+        Priority
       </ThemedText>
-      <View style={styles.priorityOptions}>
-        {priorityOptions.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.priorityOption,
-              ticketForm.priority === option.value && styles.priorityOptionSelected,
-              { borderColor: option.color }
-            ]}
-            onPress={() => setTicketForm(prev => ({ ...prev, priority: option.value as any }))}
-          >
-            <ThemedText style={[
-              styles.priorityOptionText,
-              ticketForm.priority === option.value && { color: option.color }
-            ]}>
-              {option.label}
-            </ThemedText>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectorScroll}>
+        <View style={styles.selectorOptions}>
+          {priorities.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.selectorOption,
+                ticketForm.priority === option.value && styles.selectorOptionSelected,
+              ]}
+              onPress={() => setTicketForm(prev => ({ ...prev, priority: option.value as any }))}
+            >
+              <ThemedText style={[
+                styles.selectorOptionText,
+                ticketForm.priority === option.value && styles.selectorOptionTextSelected
+              ]}>
+                {option.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 
@@ -322,49 +338,58 @@ const SupportScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              <ThemedText variant="title" style={styles.modalTitle}>
-                Create Support Ticket
-              </ThemedText>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <ThemedText variant="title" style={styles.modalTitle}>
+                  New Ticket
+                </ThemedText>
+                <TouchableOpacity 
+                  style={styles.closeButton} 
+                  onPress={() => setShowCreateModal(false)}
+                >
+                  <ThemedText style={styles.closeButtonText}>×</ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.warningBox}>
+                <ThemedText style={styles.warningBoxText}>
+                  All requests will be handled by university administration.
+                </ThemedText>
+              </View>
 
               <TextInput
-                label="Ticket Title"
+                label="Title"
                 placeholder="Brief description of your issue"
                 value={ticketForm.title}
                 onChangeText={(text) => setTicketForm(prev => ({ ...prev, title: text }))}
                 error={validationErrors.title}
               />
 
+              <View style={styles.inputSpacer} />
+
               <TextInput
-                label="Detailed Description"
-                placeholder="Please provide detailed information about your issue..."
+                label="Description"
+                placeholder="Provide details about your issue..."
                 value={ticketForm.description}
                 onChangeText={(text) => setTicketForm(prev => ({ ...prev, description: text }))}
                 error={validationErrors.description}
-                style={styles.textArea}
+                style={styles.descriptionInput}
+                multiline={true}
+                numberOfLines={2}
               />
 
               <CategorySelector />
               <PrioritySelector />
 
-              <View style={styles.modalActions}>
-                <Button
-                  title="Cancel"
-                  onPress={() => setShowCreateModal(false)}
-                  variant="outline"
-                  size="large"
-                  style={styles.modalButton}
-                />
-                <Button
-                  title={isCreating ? "Creating..." : "Create Ticket"}
-                  onPress={handleCreateTicket}
-                  variant="primary"
-                  size="large"
-                  disabled={isCreating}
-                  style={styles.modalButton}
-                />
-              </View>
-            </ScrollView>
+              <Button
+                title={isCreating ? "Submitting..." : "Submit"}
+                onPress={handleCreateTicket}
+                variant="primary"
+                size="medium"
+                disabled={isCreating}
+                style={styles.submitButton}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -615,97 +640,120 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
+  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContainer: {
-    flex: 1,
-    marginTop: '10%',
-    marginHorizontal: 20,
-    marginBottom: 20,
+    width: '90%',
+    maxWidth: 400,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 28,
-    flexGrow: 1,
+    borderRadius: 16,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-    color: '#1E293B',
-    marginBottom: 28,
-    letterSpacing: -0.2,
-  },
-  textArea: {
-    minHeight: 100,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FAFAFA',
-  },
-  priorityContainer: {
-    marginVertical: 20,
-  },
-  priorityLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 16,
-  },
-  priorityOptions: {
+  modalHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  priorityOption: {
-    flex: 1,
-    minWidth: '45%',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-    borderColor: '#E2E8F0',
-  },
-  priorityOptionSelected: {
-    backgroundColor: '#EBF4FF',
-    borderColor: '#3B82F6',
-  },
-  priorityOptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  supportNote: {
-    fontSize: 13,
-    color: '#64748B',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginVertical: 20,
-    paddingHorizontal: 16,
-    lineHeight: 18,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
-  },
-  modalButton: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#1E293B',
+    letterSpacing: -0.2,
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 0,
+    top: -4,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: '#94A3B8',
+    fontWeight: '300',
+    lineHeight: 24,
+  },
+  descriptionInput: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  inputSpacer: {
+    height: 8,
+  },
+  
+  // Selector styles (Category & Priority)
+  selectorContainer: {
+    marginTop: 16,
+  },
+  selectorLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 10,
+  },
+  selectorScroll: {
+    marginHorizontal: -4,
+  },
+  selectorOptions: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  selectorOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderRadius: 20,
+    backgroundColor: '#FAFAFA',
+    borderColor: '#E2E8F0',
+  },
+  selectorOptionSelected: {
+    backgroundColor: '#1E293B',
+    borderColor: '#1E293B',
+  },
+  selectorOptionText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  selectorOptionTextSelected: {
+    color: '#FFFFFF',
+  },
+  submitButton: {
+    marginTop: 16,
+    borderRadius: 10,
+  },
+  warningBox: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  warningBoxText: {
+    fontSize: 12,
+    color: '#C2410C',
+    textAlign: 'center',
+    lineHeight: 16,
+    fontWeight: '500',
   },
   loadingText: {
     fontSize: 14,
