@@ -19,14 +19,17 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
+    let cancelled = false;
+    
     const fetchHealthData = async () => {
       try {
         const data = await apiService.healthCheck();
-        setHealthData({ user: data.user, shop: data.shop });
+        if (!cancelled) {
+          setHealthData({ user: data.user, shop: data.shop });
+        }
       } catch (error) {
-        console.log('Failed to fetch health data:', error);
         // Fallback to stored user data
-        if (user) {
+        if (!cancelled && user) {
           setHealthData({ 
             user: user.name, 
             shop: user.shop?.name || 'Unknown Shop' 
@@ -36,6 +39,10 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
     };
 
     fetchHealthData();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const handleLogout = () => {

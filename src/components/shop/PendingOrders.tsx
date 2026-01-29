@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, memo } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
@@ -8,6 +8,7 @@ import { Order } from '@/types/orders';
 import { theme } from '@/constants/theme';
 import { useRefresh } from '@/hooks/useRefresh';
 import OrderFilters, { OrderStatus } from '@/components/OrderFilters';
+import { log } from '@/utils/logger';
 
 const PendingOrders = () => {
   const { 
@@ -24,13 +25,13 @@ const PendingOrders = () => {
   const loadOrders = useCallback(async () => {
     const filters = selectedStatus === 'all' ? {} : { status: selectedStatus as any };
     await fetchOrders(filters);
-  }, [fetchOrders, selectedStatus]);
+  }, [selectedStatus]); // Remove fetchOrders from deps - it's stable from store
 
   const { isRefreshing, onRefresh } = useRefresh(loadOrders);
 
   useEffect(() => {
     loadOrders();
-  }, [loadOrders, selectedStatus]);
+  }, [selectedStatus]); // Only reload when status changes
 
   const handleStatusChange = useCallback((status: OrderStatus) => {
     setSelectedStatus(status);
@@ -59,14 +60,14 @@ const PendingOrders = () => {
     if (pagination.hasNext && !isLoading) {
       loadMoreOrders();
     }
-  }, [pagination.hasNext, isLoading, loadMoreOrders]);
+  }, [pagination.hasNext, isLoading]); // Remove loadMoreOrders - it's stable
 
   const handleOrderPress = (orderId: string) => {
     // Navigate to order details page and pass the order ID
     router.push(`/(main)/(tabs)/order-details?orderId=${orderId}`);
   };
 
-  const renderOrderCard = ({ item }: { item: Order }) => (
+  const renderOrderCard = useCallback(({ item }: { item: Order }) => (
     <OrderCard 
       item={item} 
       onPress={() => handleOrderPress(item.id.toString())}
@@ -74,7 +75,29 @@ const PendingOrders = () => {
       onCancel={() => handleCancelOrder(item.id.toString())}
       onDeliver={() => handleDeliverOrder(item.id.toString())}
     />
-  );
+  ), [handleOrderPress, handleAcceptOrder, handleCancelOrder, handleDeliverOrder]);
+
+  const keyExtractor = useCallback((item: Order) => `order-${item.id}`, []);
+
+  const ListEmptyComponent = useCallback(() => (
+    !isLoading ? (
+      <View style={styles.emptyContainer}>
+        <ThemedText variant="subtitle" style={styles.emptyTitle}>
+          {selectedStatus === 'all' ? 'No orders found' : `No ${selectedStatus} orders found`}
+        </ThemedText>
+      </View>
+    ) : null
+  ), [isLoading, selectedStatus]);
+
+  const ListFooterComponent = useCallback(() => (
+    isLoading ? (
+      <View style={styles.loadingContainer}>
+        <ThemedText variant="caption" style={styles.loadingText}>
+          Loading orders...
+        </ThemedText>
+      </View>
+    ) : null
+  ), [isLoading]);
 
   return (
     <View style={styles.container}>
@@ -86,35 +109,31 @@ const PendingOrders = () => {
         style={styles.listContainer}
         data={filteredOrders}
         renderItem={renderOrderCard}
-        keyExtractor={(item) => item.id.toString()}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+        keyExtractor={keyExtractor}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        removeClippedSubviews={true}
+        initialNumToRender={10}
+        updateCellsBatchingPeriod={50}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.emptyContainer}>
-              <ThemedText variant="subtitle" style={styles.emptyTitle}>
-                {selectedStatus === 'all' ? 'No orders found' : `No ${selectedStatus} orders found`}
-              </ThemedText>
-            </View>
-          ) : null
-        }
-        ListFooterComponent={
-          isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ThemedText variant="caption" style={styles.loadingText}>
-                {isLoading ? 'Loading orders...' : 'Pull up to load more'}
-              </ThemedText>
-            </View>
-          ) : null
-        }
+        ListEmptyComponent={ListEmptyComponent}
+        ListFooterComponent={ListFooterComponent}
       />
     </View>
   );
 };
 
-const OrderCard = ({ 
+const OrderCard = memo(({ 
   item, 
   onPress,
   onAccept, 
@@ -221,7 +240,12 @@ const OrderCard = ({
       {renderActionButtons()}
     </TouchableOpacity>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if order data changes
+  return prevProps.item.id === nextProps.item.id &&
+         prevProps.item.status === nextProps.item.status &&
+         prevProps.item.grand_total === nextProps.item.grand_total;
+});
 
 const styles = StyleSheet.create({
   container: {

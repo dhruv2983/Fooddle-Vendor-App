@@ -8,8 +8,9 @@ import TicketChatScreen from '@/screens/TicketChatScreen';
 import { useSupportStore } from '@/store/supportStore';
 import { SupportTicket, TicketCategory } from '@/types/support';
 import { validateRequired } from '@/utils/validation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { log } from '@/utils/logger';
 
 const SupportScreen = () => {
   const {
@@ -36,7 +37,7 @@ const SupportScreen = () => {
 
   useEffect(() => {
     fetchTickets();
-  }, [fetchTickets]);
+  }, []); // fetchTickets is stable
 
   const handleTicketPress = (ticketId: string) => {
     setSelectedTicketId(ticketId);
@@ -48,16 +49,16 @@ const SupportScreen = () => {
     handleRefresh();
   };
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await fetchTickets(1); // Reset to first page
     } catch (error) {
-      console.error('Failed to refresh tickets:', error);
+      log.error('Failed to refresh tickets', error);
     } finally {
       setRefreshing(false);
     }
-  };
+  }, []); // fetchTickets is stable
 
   const priorityOptions = [
     { value: 'low', label: 'Low', color: theme.colors.info },

@@ -49,15 +49,29 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       // Handle pagination metadata if available
       const hasNext = orders.length === (paginatedFilters.per_page || 20);
       
-      set(state => ({
-        orders: append ? [...state.orders, ...orders] : orders,
-        isLoading: false,
-        pagination: {
-          page,
-          hasNext,
-          total: append ? state.pagination.total + orders.length : orders.length,
+      set(state => {
+        let newOrders: Order[];
+        
+        if (append) {
+          // When appending, merge and deduplicate by order ID
+          const existingOrderIds = new Set(state.orders.map(o => o.id));
+          const uniqueNewOrders = orders.filter(o => !existingOrderIds.has(o.id));
+          newOrders = [...state.orders, ...uniqueNewOrders];
+        } else {
+          // When not appending, just use the new orders
+          newOrders = orders;
         }
-      }));
+        
+        return {
+          orders: newOrders,
+          isLoading: false,
+          pagination: {
+            page,
+            hasNext,
+            total: newOrders.length,
+          }
+        };
+      });
       
       return { hasNext };
     } catch (error) {

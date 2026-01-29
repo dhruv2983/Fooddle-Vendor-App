@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, ScrollView, StatusBar, Linking } from 'react-native';
+import { View, StyleSheet, Alert, ScrollView, StatusBar, Linking, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -12,6 +12,24 @@ import { Order } from '@/types/orders';
 import { theme } from '@/constants/theme';
 import { validateOrderId } from '@/utils/validation';
 import { apiService } from '@/api/api';
+import { log } from '@/utils/logger';
+
+// Helper function to get status-specific styles
+const getStatusStyle = (status: string) => {
+  const statusLower = status.toLowerCase();
+  switch (statusLower) {
+    case 'received':
+      return { backgroundColor: '#F57C00' }; // Orange
+    case 'confirmed':
+      return { backgroundColor: '#1976D2' }; // Blue
+    case 'delivered':
+      return { backgroundColor: '#388E3C' }; // Green
+    case 'cancelled':
+      return { backgroundColor: '#D32F2F' }; // Red
+    default:
+      return { backgroundColor: theme.colors.muted };
+  }
+};
 
 const OrderDetailsScreen = () => {
   const params = useLocalSearchParams();
@@ -45,9 +63,10 @@ const OrderDetailsScreen = () => {
     setHasSearched(false);
 
     try {
-      // Call the actual API to get order by ID
+      // ALWAYS fetch fresh data from API - never use cached data
+      // Add timestamp to bypass any caching mechanisms
       const orderData = await apiService.getOrderById(searchOrderId);
-      console.log('Order data received:', orderData);
+      log.debug('Order data received (fresh from API):', orderData);
       
       if (orderData && orderData.id) {
         setOrder(orderData);
@@ -57,7 +76,7 @@ const OrderDetailsScreen = () => {
       }
       setHasSearched(true);
     } catch (error) {
-      console.error('Error fetching order:', error);
+      log.error('Error fetching order', error);
       setOrder(undefined);
       setHasSearched(true);
       Alert.alert('Error', 'Failed to fetch order details. Please try again.');
@@ -151,7 +170,7 @@ const OrderDetailsScreen = () => {
         Alert.alert('Error', 'Failed to generate bill. Please try again.');
       }
     } catch (error) {
-      console.error('Error generating bill:', error);
+      log.error('Error generating bill', error);
       Alert.alert('Error', 'Failed to generate bill. Please try again.');
     } finally {
       setIsGeneratingBill(false);
@@ -198,7 +217,7 @@ const OrderDetailsScreen = () => {
                 style={styles.searchInput}
                 returnKeyType="search"
                 onSubmitEditing={handleSearchOrder}
-                blurOnSubmit={false}
+                enablesReturnKeyAutomatically={true}
               />
               <Button
                 title={isSearching ? 'Searching...' : 'Find Order'}
@@ -226,141 +245,90 @@ const OrderDetailsScreen = () => {
         )}
 
         {order && (
-          <View style={styles.orderCard}>
+          <>
+            <TouchableOpacity 
+              style={styles.backToSearchLink} 
+              onPress={handleNewSearch}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={styles.backToSearchText}>
+                ← Back to Search
+              </ThemedText>
+            </TouchableOpacity>
+
+            <View style={styles.orderCard}>
+              {/* Order Header with ID, Status, and Customer Info */}
             <View style={styles.orderHeader}>
-              <ThemedText variant="title" style={styles.orderTitle}>
-                Order #{order.id}
-              </ThemedText>
-              <View style={[styles.statusBadge, styles[`status${order.status}`]]}>
-                <ThemedText style={styles.statusText}>
-                  {order.status.toUpperCase()}
+              <View style={styles.orderHeaderTop}>
+                <ThemedText variant="title" style={styles.orderTitle}>
+                  Order #{order.id}
                 </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.customerInfo}>
-              <ThemedText variant="subtitle" style={styles.sectionTitle}>
-                Customer Information
-              </ThemedText>
-              <ThemedText variant="body" style={styles.customerName}>
-                {order.customer_name}
-              </ThemedText>
-              {order.customer_phone && (
-                <ThemedText variant="body" style={styles.customerPhone}>
-                  📱 {order.customer_phone}
-                </ThemedText>
-              )}
-              {order.customer_address && (
-                <ThemedText variant="body" style={styles.customerAddress}>
-                  📍 {order.customer_address}
-                </ThemedText>
-              )}
-            </View>
-
-            <View style={styles.orderInfo}>
-              <ThemedText variant="subtitle" style={styles.sectionTitle}>
-                Order Details
-              </ThemedText>
-              <View style={styles.orderDetailRow}>
-                <ThemedText variant="body" style={styles.detailLabel}>Order Date:</ThemedText>
-                <ThemedText variant="body" style={styles.detailValue}>
-                  {new Date(order.order_date).toLocaleString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </ThemedText>
-              </View>
-              <View style={styles.orderDetailRow}>
-                <ThemedText variant="body" style={styles.detailLabel}>Payment:</ThemedText>
-                <ThemedText variant="body" style={styles.detailValue}>
-                  {order.paid_online ? `Online (${order.payment_gateway})` : 'Cash on Delivery'}
-                </ThemedText>
-              </View>
-              <View style={styles.orderDetailRow}>
-                <ThemedText variant="body" style={styles.detailLabel}>Delivery:</ThemedText>
-                <ThemedText variant="body" style={styles.detailValue}>
-                  {order.type_delivery ? 'Delivery' : 'Pickup'}
-                </ThemedText>
-              </View>
-              {order.items && order.items.length > 0 && (
-                <View style={styles.itemsSection}>
-                  <ThemedText variant="subtitle" style={styles.itemsTitle}>
-                    Items ({order.items_count})
+                <View style={[styles.statusBadge, getStatusStyle(order.status)]}>
+                  <ThemedText style={styles.statusText}>
+                    {order.status.toUpperCase()}
                   </ThemedText>
-                  {order.items.map((item, index) => (
-                    <View key={index} style={styles.itemRow}>
-                      <View style={styles.itemInfo}>
-                        <ThemedText variant="body" style={styles.itemName}>
-                          {item.item_name}
-                        </ThemedText>
-                        <ThemedText variant="caption" style={styles.itemCategory}>
-                          {item.item_category}
-                        </ThemedText>
-                      </View>
-                      <View style={styles.itemPricing}>
-                        <ThemedText variant="body" style={styles.itemQuantity}>
-                          Qty: {item.qty}
-                        </ThemedText>
-                        <ThemedText variant="body" style={styles.itemPrice}>
-                          ₹{parseFloat(item.item_price).toFixed(2)} each
-                        </ThemedText>
-                        <ThemedText variant="body" style={styles.itemTotal}>
-                          ₹{parseFloat(item.total_price).toFixed(2)}
-                        </ThemedText>
-                      </View>
-                    </View>
-                  ))}
                 </View>
-              )}
+              </View>
+              <View style={styles.customerInfoRow}>
+                <ThemedText variant="body" style={styles.customerCompactText}>
+                  {order.customer_name}
+                  {order.customer_phone && ` | ${order.customer_phone}`}
+                </ThemedText>
+                {order.customer_phone && (
+                  <Button
+                    title="📞 Call"
+                    onPress={() => Linking.openURL(`tel:${order.customer_phone}`)}
+                    variant="outline"
+                    size="small"
+                    style={styles.callButton}
+                  />
+                )}
+              </View>
             </View>
 
+            {/* Items Section */}
+            {order.items && order.items.length > 0 && (
+              <View style={styles.itemsSection}>
+                <ThemedText variant="subtitle" style={styles.sectionTitle}>
+                  Items ({order.items_count})
+                </ThemedText>
+                {order.items.map((item, index) => (
+                  <View key={index} style={styles.itemRow}>
+                    <View style={styles.itemInfo}>
+                      <ThemedText variant="body" style={styles.itemName}>
+                        {item.item_name}
+                      </ThemedText>
+                      <ThemedText variant="caption" style={styles.itemCategory}>
+                        {item.item_category}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.itemQuantityBadge}>
+                      <ThemedText variant="body" style={styles.itemQuantityText}>
+                        {item.qty}×
+                      </ThemedText>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Total Section - Simple Order Amount */}
             <View style={styles.totalSection}>
               <View style={styles.totalRow}>
-                <ThemedText variant="body">Base Amount</ThemedText>
-                <ThemedText variant="body">₹{order.base_order_amount.toFixed(2)}</ThemedText>
-              </View>
-              {order.delivery_charge > 0 && (
-                <View style={styles.totalRow}>
-                  <ThemedText variant="body">Delivery Charge</ThemedText>
-                  <ThemedText variant="body">₹{order.delivery_charge.toFixed(2)}</ThemedText>
-                </View>
-              )}
-              {order.order_convenience_fee > 0 && (
-                <View style={styles.totalRow}>
-                  <ThemedText variant="body">Convenience Fee</ThemedText>
-                  <ThemedText variant="body">₹{order.order_convenience_fee.toFixed(2)}</ThemedText>
-                </View>
-              )}
-              {parseFloat(order.gst) > 0 && (
-                <View style={styles.totalRow}>
-                  <ThemedText variant="body">GST</ThemedText>
-                  <ThemedText variant="body">₹{parseFloat(order.gst).toFixed(2)}</ThemedText>
-                </View>
-              )}
-              {order.discount > 0 && (
-                <View style={styles.totalRow}>
-                  <ThemedText variant="body">Discount</ThemedText>
-                  <ThemedText variant="body" style={styles.discountAmount}>-₹{order.discount.toFixed(2)}</ThemedText>
-                </View>
-              )}
-              <View style={styles.totalDivider} />
-              <View style={styles.totalRow}>
-                <ThemedText variant="title" style={styles.grandTotalLabel}>Grand Total</ThemedText>
-                <ThemedText variant="title" style={styles.grandTotalAmount}>
+                <ThemedText variant="title" style={styles.orderAmountLabel}>Order Amount</ThemedText>
+                <ThemedText variant="title" style={styles.orderAmountValue}>
                   ₹{order.grand_total.toFixed(2)}
                 </ThemedText>
               </View>
             </View>
 
+            {/* Action Buttons */}
             {(order.status === 'received' || order.status === 'pending') && (
               <View style={styles.actions}>
                 <Button
                   title="Cancel Order"
                   onPress={handleCancelOrder}
-                  variant="outline"
+                  variant="danger"
                   size="large"
                   style={styles.actionButton}
                 />
@@ -379,7 +347,7 @@ const OrderDetailsScreen = () => {
                 <Button
                   title="Cancel Order"
                   onPress={handleCancelOrder}
-                  variant="outline"
+                  variant="danger"
                   size="large"
                   style={styles.actionButton}
                 />
@@ -393,39 +361,41 @@ const OrderDetailsScreen = () => {
               </View>
             )}
 
-            {/* Bill Generation - Available for all orders */}
-            <View style={styles.billSection}>
-              <Button
-                title={isGeneratingBill ? "Generating Bill..." : "Generate Bill (PDF)"}
-                onPress={handleGenerateBill}
-                variant="outline"
-                size="large"
-                disabled={isGeneratingBill}
-                style={styles.billButton}
-              />
-              <ThemedText variant="caption" style={styles.billNote}>
-                Generate and download a PDF bill for this order
-              </ThemedText>
-            </View>
-
-            {(order.status === 'delivered' || order.status === 'cancelled') && (
-              <View style={styles.completedActions}>
-                <ThemedText variant="caption" style={styles.completedText}>
-                  This order has been {order.status}
-                  {order.status === 'delivered' && ' ✅'}
-                  {order.status === 'cancelled' && ' ❌'}
+            {/* Order Details (Date, Payment Mode, Bill) */}
+            <View style={styles.orderDetailsSection}>
+              <View style={styles.orderDetailRow}>
+                <ThemedText variant="body" style={styles.detailLabel}>Order Date:</ThemedText>
+                <ThemedText variant="body" style={styles.detailValue}>
+                  {new Date(order.order_date).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </ThemedText>
               </View>
-            )}
+              <View style={styles.orderDetailRow}>
+                <ThemedText variant="body" style={styles.detailLabel}>Payment Mode:</ThemedText>
+                <ThemedText variant="body" style={styles.detailValue}>
+                  {order.paid_online ? `Online (${order.payment_gateway})` : 'Cash on Delivery'}
+                </ThemedText>
+              </View>
+              <View style={styles.orderDetailRow}>
+                <ThemedText variant="body" style={styles.detailLabel}>Order Bill:</ThemedText>
+                <Button
+                  title={isGeneratingBill ? "Generating..." : "View PDF"}
+                  onPress={handleGenerateBill}
+                  variant="primary"
+                  size="small"
+                  disabled={isGeneratingBill}
+                  style={styles.billButtonInline}
+                />
+              </View>
+            </View>
 
-            <Button
-              title="Search Another Order"
-              onPress={handleNewSearch}
-              variant="outline"
-              size="medium"
-              style={styles.newSearchButton}
-            />
-          </View>
+            </View>
+          </>
         )}
 
         <ConfirmationModal
@@ -521,13 +491,16 @@ const styles = StyleSheet.create({
     ...theme.shadows.medium,
   },
   orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: theme.spacing.l,
     paddingBottom: theme.spacing.l,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+  },
+  orderHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.s,
   },
   orderTitle: {
     color: theme.colors.dark,
@@ -537,48 +510,33 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.s,
     borderRadius: theme.borderRadius.s,
   },
-  statuspending: {
-    backgroundColor: theme.colors.warning,
-  },
-  statusaccepted: {
-    backgroundColor: theme.colors.success,
-  },
-  statuscancelled: {
-    backgroundColor: theme.colors.danger,
-  },
-  statuscompleted: {
-    backgroundColor: theme.colors.success,
-  },
   statusText: {
     color: theme.colors.white,
     fontSize: 12,
     fontWeight: '600' as const,
   },
-  customerInfo: {
-    marginBottom: theme.spacing.l,
+  customerInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.s,
+    gap: theme.spacing.m,
   },
-  sectionTitle: {
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.s,
-  },
-  customerName: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  customerPhone: {
+  customerCompactText: {
     color: theme.colors.textSecondary,
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: 13,
+    fontWeight: '500' as const,
+    flex: 1,
   },
-  customerAddress: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+  callButton: {
+    minWidth: 80,
+    paddingHorizontal: theme.spacing.s,
   },
-  orderInfo: {
+  orderDetailsSection: {
     marginBottom: theme.spacing.l,
+    paddingTop: theme.spacing.l,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
   orderDetailRow: {
     flexDirection: 'row',
@@ -599,10 +557,12 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   itemsSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    marginBottom: theme.spacing.l,
+  },
+  sectionTitle: {
+    color: theme.colors.dark,
+    marginBottom: theme.spacing.m,
+    fontWeight: '600' as const,
   },
   itemsTitle: {
     color: theme.colors.text,
@@ -630,51 +590,41 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontSize: 12,
   },
-  itemPricing: {
-    alignItems: 'flex-end',
-    minWidth: 100,
+  itemQuantityBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.s,
+    minWidth: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  itemQuantity: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  itemPrice: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  itemTotal: {
-    color: theme.colors.text,
-    fontWeight: '600',
-    fontSize: 14,
+  itemQuantityText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '700' as const,
   },
   totalSection: {
-    marginBottom: theme.spacing.xl,
-    paddingTop: theme.spacing.l,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    marginBottom: theme.spacing.l,
+    paddingVertical: theme.spacing.l,
+    paddingHorizontal: theme.spacing.l,
+    backgroundColor: theme.colors.primaryLight,
+    borderRadius: theme.borderRadius.m,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  discountAmount: {
-    color: theme.colors.success,
-  },
-  totalDivider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: 12,
-  },
-  grandTotalLabel: {
-    color: theme.colors.text,
+  orderAmountLabel: {
     fontWeight: '700' as const,
+    color: theme.colors.dark,
+    fontSize: 18,
   },
-  grandTotalAmount: {
+  orderAmountValue: {
+    fontWeight: '700' as const,
     color: theme.colors.primary,
-    fontWeight: '700' as const,
+    fontSize: 20,
   },
   actions: {
     flexDirection: 'row',
@@ -698,21 +648,19 @@ const styles = StyleSheet.create({
   newSearchButton: {
     marginTop: theme.spacing.m,
   },
-  billSection: {
-    marginTop: theme.spacing.l,
-    paddingTop: theme.spacing.l,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    alignItems: 'center',
+  backToSearchLink: {
+    paddingVertical: theme.spacing.s,
+    paddingHorizontal: theme.spacing.xs,
+    marginBottom: theme.spacing.m,
+    alignSelf: 'flex-start',
   },
-  billButton: {
-    alignSelf: 'stretch',
-    marginBottom: theme.spacing.s,
+  backToSearchText: {
+    color: theme.colors.primary,
+    fontSize: 15,
+    fontWeight: '500' as const,
   },
-  billNote: {
-    color: theme.colors.muted,
-    textAlign: 'center',
-    fontStyle: 'italic',
+  billButtonInline: {
+    minWidth: 100,
   },
 });
 

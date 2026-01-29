@@ -19,13 +19,13 @@ const ShopScreen = () => {
 
   const loadShopStatus = useCallback(async () => {
     await fetchShopStatus();
-  }, [fetchShopStatus]);
-
-  const { isRefreshing, onRefresh } = useRefresh(loadShopStatus);
+  }, []); // fetchShopStatus is stable from zustand store
 
   useEffect(() => {
     loadShopStatus();
   }, [loadShopStatus]);
+
+  const { isRefreshing, onRefresh } = useRefresh(loadShopStatus);
 
   const handleStatusToggle = async (newValue: boolean) => {
     if (!newValue) {

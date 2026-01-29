@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { billsAPI } from '@/api/billsApi';
 import { Bill, BillsResponse } from '@/types/ledger';
+import { log } from '@/utils/logger';
 
 interface BillsState {
   // Data
@@ -51,7 +52,7 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
-      console.error('Failed to fetch bills:', error);
+      log.error('Failed to fetch bills', error);
       set({ isLoading: false });
       throw error;
     }
@@ -63,7 +64,7 @@ export const useBillsStore = create<BillsState>((set, get) => ({
     try {
       await get().fetchBills(1); // Reset to first page
     } catch (error) {
-      console.error('Failed to refresh bills:', error);
+      log.error('Failed to refresh bills', error);
       throw error;
     } finally {
       set({ isRefreshing: false });
@@ -75,7 +76,7 @@ export const useBillsStore = create<BillsState>((set, get) => ({
     try {
       return await billsAPI.getBill(id);
     } catch (error) {
-      console.error('Failed to fetch bill:', error);
+      log.error('Failed to fetch bill', error);
       throw error;
     }
   },
@@ -85,7 +86,7 @@ export const useBillsStore = create<BillsState>((set, get) => ({
     try {
       return await billsAPI.downloadBillPDF(billId);
     } catch (error) {
-      console.error('Failed to download bill PDF:', error);
+      log.error('Failed to download bill PDF', error);
       throw error;
     }
   },

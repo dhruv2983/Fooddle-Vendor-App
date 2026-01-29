@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { apiService, ApiError } from '@/api/api';
 import { MenuItem, CreateMenuItemRequest, UpdateMenuItemRequest, MenuCategory, MenuStats } from '@/types/menu';
 import { MenuFilters } from '@/config/api';
+import { log } from '@/utils/logger';
 
 interface MenuState {
   menu: MenuItem[];
@@ -52,7 +53,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const response = await apiService.getMenu(paginatedFilters);
       
       // Log the raw response to debug API structure
-      console.log('Menu API Response:', response);
+      log.debug('Menu API Response:', response);
       
       let menu: MenuItem[] = [];
       
@@ -66,7 +67,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         } else if (Array.isArray(response.results)) {
           menu = response.results;
         } else {
-          console.warn('Unexpected menu API response format:', response);
+          log.warn('Unexpected menu API response format:', response);
           menu = [];
         }
       }
@@ -74,7 +75,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       // Validate and clean menu items
       const validMenu = menu.filter(item => {
         if (!item || typeof item !== 'object' || !item.id) {
-          console.warn('Invalid menu item filtered out:', item);
+          log.warn('Invalid menu item filtered out:', item);
           return false;
         }
         return true;
@@ -100,7 +101,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       
       return { hasNext };
     } catch (error) {
-      console.error('Menu fetch error:', error);
+      log.error('Menu fetch error', error);
       if (error instanceof ApiError) {
         set({ error: error.message, isLoading: false });
       } else {
@@ -144,9 +145,9 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   updateMenuItem: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      console.log('Updating menu item:', id, data);
+      log.debug('Updating menu item:', id, data);
       const updatedItem = await apiService.updateMenuItem(id, data);
-      console.log('Updated menu item response:', updatedItem);
+      log.debug('Updated menu item response:', updatedItem);
       
       // Ensure the updated item has proper format
       const formattedItem = {
@@ -163,7 +164,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         isLoading: false,
       }));
     } catch (error) {
-      console.error('Menu update error:', error);
+      log.error('Menu update error', error);
       if (error instanceof ApiError) {
         set({ error: error.message, isLoading: false });
       } else {
@@ -226,7 +227,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   
   fetchMenuStats: async () => {
     // Menu stats removed - not needed
-    console.log('Menu stats feature disabled');
+    log.debug('Menu stats feature disabled');
   },
   
   clearError: () => {

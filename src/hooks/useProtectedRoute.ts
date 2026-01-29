@@ -11,8 +11,20 @@ export function useProtectedRoute() {
 
   useEffect(() => {
     // Check authentication on app start
-    checkAuth();
-  }, []);
+    let cancelled = false;
+    
+    const initAuth = async () => {
+      if (!cancelled) {
+        await checkAuth();
+      }
+    };
+    
+    initAuth();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [checkAuth]);
 
   useEffect(() => {
     // Don't run if navigation isn't ready

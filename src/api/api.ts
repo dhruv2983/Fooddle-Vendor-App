@@ -3,6 +3,7 @@ import { LoginRequest, User, AuthCredentials, HealthCheckResponse } from '@/type
 import { Order, OrderStatusUpdate, OrderStats } from '@/types/orders';
 import { MenuItem, CreateMenuItemRequest, UpdateMenuItemRequest, MenuCategory, MenuStats } from '@/types/menu';
 import { Shop, UpdateShopRequest, ShopStatus, UpdateShopStatusRequest, Analytics } from '@/types/shop';
+import { log } from '@/utils/logger';
 
 class ApiError extends Error {
   constructor(
@@ -53,15 +54,8 @@ class ApiService {
       headers,
     };
 
-    // Log API request
-    console.log(`API Request: ${options.method || 'GET'} ${url}`, {
-      headers: Object.fromEntries(
-        Object.entries(headers).map(([k, v]) => 
-          [k, k.toLowerCase() === 'authorization' ? '[HIDDEN]' : v]
-        )
-      ),
-      body: options.body || null
-    });
+    // Log API request (debug only)
+    log.apiRequest(options.method || 'GET', endpoint, options.body ? JSON.parse(options.body as string) : undefined);
 
     try {
       const controller = new AbortController();
@@ -86,18 +80,11 @@ class ApiService {
         rawResponseText = await response.text();
         data = JSON.parse(rawResponseText);
         
-        // Log API response
-        console.log(`API Response: ${response.status} ${response.statusText}`, {
-          url: url,
-          headers: Object.fromEntries(response.headers.entries()),
-          success: data.success,
-          error: data.error?.message || null,
-          data: data.data ? Object.keys(data.data) : null
-        });
+        // Log API response (debug only)
+        log.apiResponse(response.status, endpoint, data.success ? 'Success' : data.error?.message);
         
       } catch (parseError) {
-        console.log(`API Response: ${response.status} Parse Error`, {
-          url: url,
+        log.error(`API Response Parse Error: ${response.status} ${endpoint}`, {
           error: 'Invalid JSON response',
           rawResponse: rawResponseText.substring(0, 200)
         });
@@ -133,7 +120,7 @@ class ApiService {
       return data.data!;
     } catch (error) {
       // Log API error
-      console.log(`API Error: ${options.method || 'GET'} ${url}`, {
+      log.apiError(options.method || 'GET', endpoint, {
         error: error instanceof Error ? error.message : String(error),
         type: error instanceof Error ? error.constructor.name : typeof error
       });
@@ -233,7 +220,11 @@ class ApiService {
   }
 
   async getOrderById(id: string): Promise<Order> {
-    return this.makeRequest<Order>(API_CONFIG.ENDPOINTS.ORDER_DETAILS(id));
+    // Add cache-busting timestamp to ensure fresh data on every request
+    const cacheBuster = `_t=${Date.now()}`;
+    const endpoint = API_CONFIG.ENDPOINTS.ORDER_DETAILS(id);
+    const endpointWithCache = endpoint.includes('?') ? `${endpoint}&${cacheBuster}` : `${endpoint}?${cacheBuster}`;
+    return this.makeRequest<Order>(endpointWithCache);
   }
 
   async updateOrderStatus(id: string, data: OrderStatusUpdate): Promise<Order> {

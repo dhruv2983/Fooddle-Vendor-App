@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import { View, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useMenuStore } from '@/store/menuStore';
@@ -25,7 +25,7 @@ const Menu = () => {
 
   const loadMenu = useCallback(async () => {
     await refreshAll(); // Load menu and categories
-  }, [refreshAll]);
+  }, []); // refreshAll is stable from store
 
   const { isRefreshing, onRefresh } = useRefresh(loadMenu);
 
@@ -47,6 +47,42 @@ const Menu = () => {
     setEditingItem(null);
   };
 
+  const handleLoadMore = useCallback(() => {
+    if (pagination.hasNext && !isLoading) {
+      loadMoreMenu();
+    }
+  }, [pagination.hasNext, isLoading]); // loadMoreMenu is stable
+
+  const renderMenuItem = useCallback(({ item }: { item: MenuItemType }) => (
+    <MenuItemCard 
+      item={item} 
+      onPress={handleEditItem}
+    />
+  ), [handleEditItem]);
+
+  const keyExtractor = useCallback((item: MenuItemType) => `menu-${item.id}`, []);
+
+  const ListFooterComponent = useCallback(() => (
+    pagination.hasNext ? (
+      <View style={styles.loadingMore}>
+        <ThemedText variant="caption" style={styles.loadingText}>
+          {isLoading ? 'Loading more items...' : 'Pull up to load more'}
+        </ThemedText>
+      </View>
+    ) : null
+  ), [pagination.hasNext, isLoading]);
+
+  const ListEmptyComponent = useCallback(() => (
+    !isLoading ? (
+      <View style={styles.emptyContainer}>
+        <ThemedText style={styles.emptyText}>
+          No menu items found
+        </ThemedText>
+      </View>
+    ) : null
+  ), [isLoading]);
+
+  // FIXED: Moved early return AFTER all hooks are defined
   if (isLoading && (!Array.isArray(menu) || !menu.length)) {
     return (
       <View style={styles.loadingContainer}>
@@ -59,12 +95,12 @@ const Menu = () => {
   const validMenuItems = Array.isArray(menu) ? menu.filter(item => {
     // Handle both valid objects and invalid data
     if (!item || typeof item !== 'object' || !item.id) {
-      console.warn('Invalid menu item detected:', item);
       return false;
     }
     return true;
   }) : [];
 
+  // FIXED: Moved early return for editingItem AFTER all hooks
   if (editingItem) {
     return (
       <MenuItemEditScreen 
@@ -75,23 +111,12 @@ const Menu = () => {
     );
   }
 
-  const handleLoadMore = useCallback(() => {
-    if (pagination.hasNext && !isLoading) {
-      loadMoreMenu();
-    }
-  }, [pagination.hasNext, isLoading, loadMoreMenu]);
-
   return (
     <View style={styles.container}>
       <FlatList
         data={validMenuItems}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        renderItem={({ item }) => (
-          <MenuItemCard 
-            item={item} 
-            onPress={handleEditItem}
-          />
-        )}
+        keyExtractor={keyExtractor}
+        renderItem={renderMenuItem}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
@@ -102,25 +127,14 @@ const Menu = () => {
           />
         }
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.1}
-        ListFooterComponent={
-          pagination.hasNext ? (
-            <View style={styles.loadingMore}>
-              <ThemedText variant="caption" style={styles.loadingText}>
-                {isLoading ? 'Loading more items...' : 'Pull up to load more'}
-              </ThemedText>
-            </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.emptyContainer}>
-              <ThemedText style={styles.emptyText}>
-                No menu items found
-              </ThemedText>
-            </View>
-          ) : null
-        }
+        onEndReachedThreshold={0.5}
+        maxToRenderPerBatch={8}
+        windowSize={8}
+        removeClippedSubviews={true}
+        initialNumToRender={8}
+        updateCellsBatchingPeriod={50}
+        ListFooterComponent={ListFooterComponent}
+        ListEmptyComponent={ListEmptyComponent}
         showsVerticalScrollIndicator={false}
       />
     </View>

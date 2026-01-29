@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 interface PaginationState {
   page: number;
@@ -42,10 +42,12 @@ export const usePagination = (
     });
   }, []);
 
-  // Reset when trigger changes
-  if (resetTrigger !== undefined) {
-    reset();
-  }
+  // Reset when trigger changes - use useEffect to avoid infinite loops
+  useEffect(() => {
+    if (resetTrigger !== undefined) {
+      reset();
+    }
+  }, [resetTrigger, reset]);
 
   return {
     ...state,

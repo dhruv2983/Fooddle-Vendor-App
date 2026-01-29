@@ -36,7 +36,19 @@ const TicketChatScreen: React.FC<TicketChatScreenProps> = ({ ticketId, onBack })
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    loadTicketDetails();
+    let cancelled = false;
+    
+    const loadData = async () => {
+      if (!cancelled) {
+        await loadTicketDetails();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [ticketId]);
 
   const loadTicketDetails = async () => {

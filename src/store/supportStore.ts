@@ -7,6 +7,7 @@ import {
   TicketPriority,
   TicketCategory 
 } from '@/types/support';
+import { log } from '@/utils/logger';
 
 interface SupportState {
   // Data
@@ -76,7 +77,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
         isLoading: false,
       });
     } catch (error) {
-      console.error('Failed to fetch tickets:', error);
+      log.error('Failed to fetch tickets', error);
       set({ isLoading: false });
       throw error;
     }
@@ -98,7 +99,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
       return newTicket;
     } catch (error) {
       set({ isCreating: false });
-      console.error('Failed to create ticket:', error);
+      log.error('Failed to create ticket', error);
       throw error;
     }
   },
@@ -115,7 +116,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
         isLoadingEnums: false,
       });
     } catch (error) {
-      console.error('Failed to fetch enums:', error);
+      log.error('Failed to fetch enums', error);
       set({ isLoadingEnums: false });
       // Keep default values if API fails
     }
@@ -127,7 +128,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
       const priorities = await supportAPI.getPriorities();
       set({ priorities });
     } catch (error) {
-      console.error('Failed to fetch priorities:', error);
+      log.error('Failed to fetch priorities', error);
       // Keep default priorities if API fails
     }
   },
@@ -138,7 +139,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
       const categories = await supportAPI.getCategories();
       set({ categories });
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      log.error('Failed to fetch categories', error);
       // Keep default categories if API fails
     }
   },
@@ -148,7 +149,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
     try {
       return await supportAPI.getTicket(id);
     } catch (error) {
-      console.error('Failed to fetch ticket:', error);
+      log.error('Failed to fetch ticket', error);
       throw error;
     }
   },
@@ -167,7 +168,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
       
       return updatedTicket;
     } catch (error) {
-      console.error('Failed to update ticket:', error);
+      log.error('Failed to update ticket', error);
       throw error;
     }
   },
@@ -178,7 +179,7 @@ export const useSupportStore = create<SupportState>((set, get) => ({
       const response = await supportAPI.sendMessage(ticketId, message);
       return response;
     } catch (error) {
-      console.error('Failed to send message:', error);
+      log.error('Failed to send message', error);
       throw error;
     }
   },

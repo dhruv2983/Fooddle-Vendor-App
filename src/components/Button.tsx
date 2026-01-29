@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
   // Text styles with reduced sizes
   text: {
     fontWeight: '600' as const,
+    fontFamily: 'Urbanist-SemiBold',
     textAlign: 'center' as const,
     letterSpacing: 0.1,
   },

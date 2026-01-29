@@ -76,6 +76,7 @@ export const theme = {
     header: {
       fontSize: 24,
       fontWeight: '700' as const,
+      fontFamily: 'Urbanist-Bold',
       color: palette.dark,
       lineHeight: 32,
       letterSpacing: -0.3,
@@ -83,6 +84,7 @@ export const theme = {
     title: {
       fontSize: 18,
       fontWeight: '600' as const,
+      fontFamily: 'Urbanist-SemiBold',
       color: palette.dark,
       lineHeight: 26,
       letterSpacing: -0.2,
@@ -90,24 +92,28 @@ export const theme = {
     subtitle: {
       fontSize: 14,
       fontWeight: '500' as const,
+      fontFamily: 'Urbanist-Medium',
       color: palette.secondary,
       lineHeight: 20,
     },
     body: {
       fontSize: 14,
       fontWeight: '400' as const,
+      fontFamily: 'Urbanist-Regular',
       color: palette.dark,
       lineHeight: 20,
     },
     caption: {
       fontSize: 12,
       fontWeight: '400' as const,
+      fontFamily: 'Urbanist-Regular',
       color: palette.muted,
       lineHeight: 16,
     },
     small: {
       fontSize: 10,
       fontWeight: '400' as const,
+      fontFamily: 'Urbanist-Regular',
       color: palette.muted,
       lineHeight: 14,
     },

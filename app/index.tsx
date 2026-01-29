@@ -10,16 +10,17 @@ export default function Index() {
 
   useEffect(() => {
     // Redirect based on authentication status
+    // Small delay to ensure navigation is ready
     const timer = setTimeout(() => {
       if (user) {
         router.replace('/(main)/(tabs)');
       } else {
         router.replace('/(auth)/login');
       }
-    }, 100); // Small delay to ensure navigation is ready
+    }, 100);
 
     return () => clearTimeout(timer);
-  }, [user, router]);
+  }, [user]); // Remove router from deps - it's stable
 
   return (
     <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

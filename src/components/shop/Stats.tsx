@@ -5,12 +5,14 @@ import { useShopStore } from '@/store/shopStore';
 import { theme } from '@/constants/theme';
 import { useRefresh } from '@/hooks/useRefresh';
 
+import { log } from '@/utils/logger';
+
 const Stats = () => {
   const { analytics, isLoading: analyticsLoading, fetchAnalytics } = useShopStore();
 
   const loadAnalytics = useCallback(async () => {
     await fetchAnalytics();
-  }, [fetchAnalytics]);
+  }, []); // fetchAnalytics is stable from zustand store
 
   const { isRefreshing, onRefresh } = useRefresh(loadAnalytics);
   const isLoading = analyticsLoading;
@@ -19,7 +21,7 @@ const Stats = () => {
     loadAnalytics();
   }, [loadAnalytics]);
 
-  console.log('Analytics Data:', analytics);
+  log.debug('Analytics Data:', analytics);
 
   // Use analytics data if available, otherwise fallback to basic calculations
   const lifetimeOrders = analytics?.total_orders || 0;

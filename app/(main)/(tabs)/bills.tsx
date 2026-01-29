@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { useBillsStore } from '@/store/billsStore';
 import { Bill } from '@/types/ledger';
 import { theme } from '@/constants/theme';
+import { log } from '@/utils/logger';
 
 const BillsScreen = () => {
   const { 
@@ -21,21 +22,21 @@ const BillsScreen = () => {
     try {
       await fetchBills();
     } catch (error) {
-      console.error('Failed to load bills:', error);
+      log.error('Failed to load bills', error);
     }
-  }, [fetchBills]);
+  }, []); // fetchBills is stable
 
   useEffect(() => {
     loadBills();
   }, [loadBills]);
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     try {
       await refreshBills();
     } catch (error) {
-      console.error('Failed to refresh bills:', error);
+      log.error('Failed to refresh bills', error);
     }
-  };
+  }, []); // refreshBills is stable
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -63,11 +64,12 @@ const BillsScreen = () => {
     return `Due in ${bill.days_until_due} days`;
   };
 
-  const getTotalDues = () => {
+  // Memoize heavy computations
+  const totalDues = useMemo(() => {
     return bills
       .filter(bill => bill.status !== 'paid')
       .reduce((total, bill) => total + parseFloat(bill.total_amount), 0);
-  };
+  }, [bills]);
 
   const BillCard = ({ bill }: { bill: Bill }) => (
     <TouchableOpacity style={styles.billCard} activeOpacity={0.6}>
@@ -163,7 +165,7 @@ const BillsScreen = () => {
             <ThemedText variant="caption" style={styles.summaryTitle}>
               Outstanding Amount
             </ThemedText>
-            {getTotalDues() > 0 && (
+            {totalDues > 0 && (
               <View style={styles.urgencyIndicator}>
                 <View style={styles.urgencyDot} />
                 <ThemedText style={styles.urgencyLabel}>
@@ -174,7 +176,7 @@ const BillsScreen = () => {
           </View>
           
           <ThemedText variant="header" style={styles.totalAmountValue}>
-            ₹{getTotalDues().toLocaleString('en-IN')}
+            ₹{totalDues.toLocaleString('en-IN')}
           </ThemedText>
           
           <View style={styles.summaryMetrics}>
@@ -387,7 +389,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginBottom: 12,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist-Regular',
   },
   billMetaRow: {
     flexDirection: 'row',
