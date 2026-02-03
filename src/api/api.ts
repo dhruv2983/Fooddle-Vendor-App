@@ -4,6 +4,8 @@ import { Order, OrderStatusUpdate, OrderStats } from '@/types/orders';
 import { MenuItem, CreateMenuItemRequest, UpdateMenuItemRequest, MenuCategory, MenuStats } from '@/types/menu';
 import { Shop, UpdateShopRequest, ShopStatus, UpdateShopStatusRequest, Analytics } from '@/types/shop';
 import { log } from '@/utils/logger';
+import { ENV } from '@/config/environment';
+import { mockApiService } from './mock';
 
 class ApiError extends Error {
   constructor(
@@ -25,11 +27,17 @@ class ApiService {
   // Set authentication credentials
   setCredentials(username: string, password: string) {
     this.credentials = btoa(`${username}:${password}`);
+    if (ENV.USE_MOCK_API) {
+      mockApiService.setCredentials(username, password);
+    }
   }
 
   // Clear authentication credentials
   clearCredentials() {
     this.credentials = null;
+    if (ENV.USE_MOCK_API) {
+      mockApiService.clearCredentials();
+    }
   }
 
   // Make authenticated request
@@ -153,6 +161,10 @@ class ApiService {
 
   // Authentication & Health
   async login({ username, password }: LoginRequest): Promise<{ user: User; token: string }> {
+    if (ENV.USE_MOCK_API) {
+      return mockApiService.login({ username, password });
+    }
+    
     this.setCredentials(username, password);
     
     try {
@@ -181,15 +193,18 @@ class ApiService {
   }
 
   async healthCheck(): Promise<HealthCheckResponse> {
+    if (ENV.USE_MOCK_API) return mockApiService.healthCheck();
     return this.makeRequest<HealthCheckResponse>(API_CONFIG.ENDPOINTS.HEALTH);
   }
 
   // Shop Management
   async getShop(): Promise<Shop> {
+    if (ENV.USE_MOCK_API) return mockApiService.getShop();
     return this.makeRequest<Shop>(API_CONFIG.ENDPOINTS.SHOP);
   }
 
   async updateShop(data: UpdateShopRequest): Promise<Shop> {
+    if (ENV.USE_MOCK_API) return mockApiService.updateShop(data);
     return this.makeRequest<Shop>(API_CONFIG.ENDPOINTS.SHOP, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -197,10 +212,12 @@ class ApiService {
   }
 
   async getShopStatus(): Promise<ShopStatus> {
+    if (ENV.USE_MOCK_API) return mockApiService.getShopStatus();
     return this.makeRequest<ShopStatus>(API_CONFIG.ENDPOINTS.SHOP_STATUS);
   }
 
   async updateShopStatus(data: UpdateShopStatusRequest): Promise<ShopStatus> {
+    if (ENV.USE_MOCK_API) return mockApiService.updateShopStatus(data);
     return this.makeRequest<ShopStatus>(API_CONFIG.ENDPOINTS.SHOP_STATUS, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -208,18 +225,21 @@ class ApiService {
   }
 
   async getShopAnalytics(params?: AnalyticsParams): Promise<Analytics> {
+    if (ENV.USE_MOCK_API) return mockApiService.getShopAnalytics(params);
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
     return this.makeRequest<Analytics>(`${API_CONFIG.ENDPOINTS.SHOP_ANALYTICS}${query}`);
   }
 
   // Order Management
   async getOrders(filters?: OrderFilters): Promise<Order[]> {
+    if (ENV.USE_MOCK_API) return mockApiService.getOrders(filters);
     const query = filters ? `?${new URLSearchParams(filters as any).toString()}` : '';
     const response = await this.makeRequest<Order[]>(`${API_CONFIG.ENDPOINTS.ORDERS}${query}`);
     return Array.isArray(response) ? response : [];
   }
 
   async getOrderById(id: string): Promise<Order> {
+    if (ENV.USE_MOCK_API) return mockApiService.getOrderById(id);
     // Add cache-busting timestamp to ensure fresh data on every request
     const cacheBuster = `_t=${Date.now()}`;
     const endpoint = API_CONFIG.ENDPOINTS.ORDER_DETAILS(id);
@@ -228,6 +248,7 @@ class ApiService {
   }
 
   async updateOrderStatus(id: string, data: OrderStatusUpdate): Promise<Order> {
+    if (ENV.USE_MOCK_API) return mockApiService.updateOrderStatus(id, data);
     return this.makeRequest<Order>(API_CONFIG.ENDPOINTS.ORDER_STATUS(id), {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -235,18 +256,21 @@ class ApiService {
   }
 
   async getOrderStats(params?: AnalyticsParams): Promise<OrderStats> {
+    if (ENV.USE_MOCK_API) return mockApiService.getOrderStats(params);
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
     return this.makeRequest<OrderStats>(`${API_CONFIG.ENDPOINTS.ORDER_STATS}${query}`);
   }
 
   // Menu Management
   async getMenu(filters?: MenuFilters): Promise<MenuItem[]> {
+    if (ENV.USE_MOCK_API) return mockApiService.getMenu(filters);
     const query = filters ? `?${new URLSearchParams(filters as any).toString()}` : '';
     const response = await this.makeRequest<MenuItem[]>(`${API_CONFIG.ENDPOINTS.MENU}${query}`);
     return Array.isArray(response) ? response : [];
   }
 
   async createMenuItem(data: CreateMenuItemRequest): Promise<MenuItem> {
+    if (ENV.USE_MOCK_API) return mockApiService.createMenuItem(data);
     return this.makeRequest<MenuItem>(API_CONFIG.ENDPOINTS.MENU_CREATE, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -254,10 +278,12 @@ class ApiService {
   }
 
   async getMenuItem(id: string): Promise<MenuItem> {
+    if (ENV.USE_MOCK_API) return mockApiService.getMenuItem(id);
     return this.makeRequest<MenuItem>(API_CONFIG.ENDPOINTS.MENU_ITEM(id));
   }
 
   async updateMenuItem(id: string, data: UpdateMenuItemRequest): Promise<MenuItem> {
+    if (ENV.USE_MOCK_API) return mockApiService.updateMenuItem(id, data);
     return this.makeRequest<MenuItem>(API_CONFIG.ENDPOINTS.MENU_ITEM(id), {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -265,12 +291,14 @@ class ApiService {
   }
 
   async deleteMenuItem(id: string): Promise<void> {
+    if (ENV.USE_MOCK_API) return mockApiService.deleteMenuItem(id);
     await this.makeRequest(API_CONFIG.ENDPOINTS.MENU_ITEM(id), {
       method: 'DELETE',
     });
   }
 
   async toggleMenuItemVisibility(id: string, visible: boolean): Promise<MenuItem> {
+    if (ENV.USE_MOCK_API) return mockApiService.toggleMenuItemVisibility(id, visible);
     return this.makeRequest<MenuItem>(API_CONFIG.ENDPOINTS.MENU_VISIBILITY(id), {
       method: 'PUT',
       body: JSON.stringify({ visible }),
@@ -278,25 +306,30 @@ class ApiService {
   }
 
   async getMenuCategories(): Promise<MenuCategory[]> {
+    if (ENV.USE_MOCK_API) return mockApiService.getMenuCategories();
     return this.makeRequest<MenuCategory[]>(API_CONFIG.ENDPOINTS.MENU_CATEGORIES);
   }
 
   async getMenuStats(): Promise<MenuStats> {
+    if (ENV.USE_MOCK_API) return mockApiService.getMenuStats();
     return this.makeRequest<MenuStats>(API_CONFIG.ENDPOINTS.MENU_STATS);
   }
 
   // Analytics
   async getAnalyticsOverview(params?: AnalyticsParams): Promise<Analytics> {
+    if (ENV.USE_MOCK_API) return mockApiService.getAnalyticsOverview(params);
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
     return this.makeRequest<Analytics>(`${API_CONFIG.ENDPOINTS.ANALYTICS_OVERVIEW}${query}`);
   }
 
   async getOrderAnalytics(params?: AnalyticsParams): Promise<any> {
+    if (ENV.USE_MOCK_API) return mockApiService.getOrderAnalytics(params);
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
     return this.makeRequest(`${API_CONFIG.ENDPOINTS.ANALYTICS_ORDERS}${query}`);
   }
 
   async getRevenueAnalytics(params?: AnalyticsParams): Promise<any> {
+    if (ENV.USE_MOCK_API) return mockApiService.getRevenueAnalytics(params);
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
     return this.makeRequest(`${API_CONFIG.ENDPOINTS.ANALYTICS_REVENUE}${query}`);
   }
