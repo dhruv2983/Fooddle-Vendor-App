@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           <Pressable style={styles.modalOverlay} onPress={() => setShowSideSheet(false)}>
             <Pressable style={styles.sideSheet} onPress={(e) => e.stopPropagation()}>
               <View style={styles.sideSheetHeader}>
-                <ThemedText style={styles.sideSheetTitle}>Menu</ThemedText>
+                <ThemedText style={styles.sideSheetTitle}> Dhruv</ThemedText>
                 <TouchableOpacity onPress={() => setShowSideSheet(false)}>
                   <Ionicons name="close" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
@@ -129,6 +129,24 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                     ios_backgroundColor="#FFE6E6"
                   />
                 </View>
+
+                {/* Menu Button */}
+                <TouchableOpacity style={styles.menuItem} onPress={() => { setShowSideSheet(false); router.push('/(main)/menu'); }}>
+                  <View style={styles.menuItemLeft}>
+                    <Ionicons name="restaurant-outline" size={20} color={theme.colors.text} />
+                    <ThemedText style={styles.menuItemText}>Menu</ThemedText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={theme.colors.muted} />
+                </TouchableOpacity>
+
+                {/* Analytics Button */}
+                <TouchableOpacity style={styles.menuItem} onPress={() => { setShowSideSheet(false); router.push('/(main)/analytics'); }}>
+                  <View style={styles.menuItemLeft}>
+                    <Ionicons name="stats-chart-outline" size={20} color={theme.colors.text} />
+                    <ThemedText style={styles.menuItemText}>Analytics</ThemedText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={theme.colors.muted} />
+                </TouchableOpacity>
 
                 {/* Bills Button */}
                 <TouchableOpacity style={styles.menuItem} onPress={handleNavigateToBills}>

@@ -137,7 +137,7 @@ const MenuItemEditScreen: React.FC<MenuItemEditScreenProps> = ({ item, onBack, o
               style={styles.input}
             />
 
-            {/* Price Row */}
+            {/* Price Row - Read Only */}
             <View style={styles.priceRow}>
               <View style={styles.priceField}>
                 <TextInput
@@ -147,6 +147,8 @@ const MenuItemEditScreen: React.FC<MenuItemEditScreenProps> = ({ item, onBack, o
                   onChangeText={(value) => updateField('price', value)}
                   keyboardType="decimal-pad"
                   error={errors.price}
+                  editable={false}
+                  style={styles.readOnlyInput}
                 />
               </View>
               
@@ -158,6 +160,8 @@ const MenuItemEditScreen: React.FC<MenuItemEditScreenProps> = ({ item, onBack, o
                   onChangeText={(value) => updateField('mrp', value)}
                   keyboardType="decimal-pad"
                   error={errors.mrp}
+                  editable={false}
+                  style={styles.readOnlyInput}
                 />
               </View>
             </View>
@@ -343,6 +347,10 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 2,
+  },
+  readOnlyInput: {
+    backgroundColor: '#F5F5F5',
+    opacity: 0.6,
   },
 });
 
