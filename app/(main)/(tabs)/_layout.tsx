@@ -17,25 +17,28 @@ export default function TabLayout() {
           backgroundColor: theme.colors.white,
           borderTopColor: theme.colors.border,
           borderTopWidth: 1,
-          paddingHorizontal: 0, // Remove horizontal padding
+          paddingHorizontal: 0,
+          paddingBottom: 12,
+          height: 70,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 14,
           fontWeight: '600',
           marginTop: 4,
+          marginBottom: 4,
         },
         tabBarItemStyle: {
-          flex: 1, // Make each tab take equal space
+          flex: 1,
           paddingVertical: 8,
         },
       }}>
       <Tabs.Screen
-        name="order-details"
+        name="index"
         options={{
-          title: 'Order',
+          title: 'Delivery',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
-              name={focused ? 'receipt' : 'receipt-outline'} 
+              name={focused ? 'bicycle' : 'bicycle-outline'} 
               size={24} 
               color={color} 
             />
@@ -43,42 +46,34 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="pickup"
         options={{
-          title: 'Shop',
+          title: 'Pickup',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
-              name={focused ? 'storefront' : 'storefront-outline'} 
+              name={focused ? 'bag-handle' : 'bag-handle-outline'} 
               size={24} 
               color={color} 
             />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="order-details"
+        options={{
+          href: null, // Hide from tabs - this is the order details screen
         }}
       />
       <Tabs.Screen
         name="bills"
         options={{
-          title: 'Bills',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'card' : 'card-outline'} 
-              size={24} 
-              color={color} 
-            />
-          ),
+          href: null, // Hide from tabs
         }}
       />
       <Tabs.Screen
         name="support"
         options={{
-          title: 'Support',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'help-circle' : 'help-circle-outline'} 
-              size={24} 
-              color={color} 
-            />
-          ),
+          href: null, // Hide from tabs
         }}
       />
     </Tabs>

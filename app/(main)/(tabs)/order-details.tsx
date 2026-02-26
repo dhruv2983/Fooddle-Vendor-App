@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, ScrollView, StatusBar, Linking, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { apiService } from '@/api/api';
+import { Button } from '@/components/Button';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { Header } from '@/components/Header';
+import { TextInput } from '@/components/TextInput';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Button } from '@/components/Button';
-import { TextInput } from '@/components/TextInput';
-import { Header } from '@/components/Header';
-import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { theme } from '@/constants/theme';
 import { useOrderStore } from '@/store/orderStore';
 import { Order } from '@/types/orders';
-import { theme } from '@/constants/theme';
-import { validateOrderId } from '@/utils/validation';
-import { apiService } from '@/api/api';
 import { log } from '@/utils/logger';
+import { validateOrderId } from '@/utils/validation';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, Linking, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 // Helper function to get status-specific styles
 const getStatusStyle = (status: string) => {
@@ -102,8 +102,9 @@ const OrderDetailsScreen = () => {
     if (order) {
       try {
         await updateOrderStatus(order.id.toString(), { status: 'confirmed' });
-        setOrder({ ...order, status: 'confirmed', is_confirmed: true });
-        Alert.alert('Success', `Order ${order.id} has been accepted and confirmed`);
+        Alert.alert('Success', `Order ${order.id} has been accepted and confirmed`, [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
       } catch (error) {
         Alert.alert('Error', 'Failed to accept order. Please try again.');
       }
@@ -118,9 +119,10 @@ const OrderDetailsScreen = () => {
     if (order) {
       try {
         await updateOrderStatus(order.id.toString(), { status: 'cancelled', reason: 'Cancelled by vendor' });
-        setOrder({ ...order, status: 'cancelled', is_cancelled: true });
         setShowCancelModal(false);
-        Alert.alert('Success', `Order ${order.id} has been cancelled`);
+        Alert.alert('Success', `Order ${order.id} has been cancelled`, [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
       } catch (error) {
         Alert.alert('Error', 'Failed to cancel order. Please try again.');
       }
@@ -131,8 +133,9 @@ const OrderDetailsScreen = () => {
     if (order) {
       try {
         await updateOrderStatus(order.id.toString(), { status: 'delivered' });
-        setOrder({ ...order, status: 'delivered' });
-        Alert.alert('Success', `Order ${order.id} has been marked as delivered`);
+        Alert.alert('Success', `Order ${order.id} has been marked as delivered`, [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
       } catch (error) {
         Alert.alert('Error', 'Failed to update order status. Please try again.');
       }
@@ -246,7 +249,7 @@ const OrderDetailsScreen = () => {
 
         {order && (
           <>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.backToSearchLink} 
               onPress={handleNewSearch}
               activeOpacity={0.7}
@@ -254,7 +257,7 @@ const OrderDetailsScreen = () => {
               <ThemedText style={styles.backToSearchText}>
                 ← Back to Search
               </ThemedText>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <View style={styles.orderCard}>
               {/* Order Header with ID, Status, and Customer Info */}

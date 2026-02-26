@@ -8,9 +8,13 @@ import { Order } from '@/types/orders';
 import { theme } from '@/constants/theme';
 import { useRefresh } from '@/hooks/useRefresh';
 import OrderFilters, { OrderStatus } from '@/components/OrderFilters';
-import { log } from '@/utils/logger';
 
-const PendingOrders = () => {
+interface PendingOrdersProps {
+  searchQuery?: string;
+  orderType: 'delivery' | 'pickup';
+}
+
+const PendingOrders: React.FC<PendingOrdersProps> = ({ searchQuery = '', orderType }) => {
   const { 
     orders, 
     isLoading, 
@@ -20,18 +24,19 @@ const PendingOrders = () => {
     pagination 
   } = useOrderStore();
   
-  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('all');
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('pending');
 
   const loadOrders = useCallback(async () => {
-    const filters = selectedStatus === 'all' ? {} : { status: selectedStatus as any };
+    // For 'pending', fetch all orders and filter client-side
+    const filters = (selectedStatus === 'pending') ? {} : { status: selectedStatus as any };
     await fetchOrders(filters);
-  }, [selectedStatus]); // Remove fetchOrders from deps - it's stable from store
+  }, [selectedStatus]);
 
   const { isRefreshing, onRefresh } = useRefresh(loadOrders);
 
   useEffect(() => {
     loadOrders();
-  }, [selectedStatus]); // Only reload when status changes
+  }, [selectedStatus]);
 
   const handleStatusChange = useCallback((status: OrderStatus) => {
     setSelectedStatus(status);
@@ -39,10 +44,31 @@ const PendingOrders = () => {
 
   const ordersArray = Array.isArray(orders) ? orders : [];
   
-  // Filter orders based on selected status
-  const filteredOrders = selectedStatus === 'all' 
-    ? ordersArray 
-    : ordersArray.filter(order => order.status === selectedStatus);
+  // Filter orders based on selected status, search query, and order type
+  const filteredOrders = ordersArray
+    .filter(order => {
+      // Filter by status
+      if (selectedStatus === 'pending') {
+        // Pending includes only 'received' and 'confirmed' orders
+        if (order.status !== 'received' && order.status !== 'confirmed') {
+          return false;
+        }
+      } else if (order.status !== selectedStatus) {
+        return false;
+      }
+      // Filter by order type
+      if (orderType === 'delivery' && !order.type_delivery) {
+        return false;
+      }
+      if (orderType === 'pickup' && order.type_delivery) {
+        return false;
+      }
+      // Filter by search query
+      if (searchQuery && searchQuery.trim() !== '') {
+        return order.id.toString().includes(searchQuery.trim());
+      }
+      return true;
+    });
 
   const handleAcceptOrder = (orderId: string) => {
     updateOrderStatus(orderId, { status: 'confirmed' });
@@ -83,7 +109,7 @@ const PendingOrders = () => {
     !isLoading ? (
       <View style={styles.emptyContainer}>
         <ThemedText variant="subtitle" style={styles.emptyTitle}>
-          {selectedStatus === 'all' ? 'No orders found' : `No ${selectedStatus} orders found`}
+          {selectedStatus === 'pending' ? 'No pending orders' : `No ${selectedStatus} orders found`}
         </ThemedText>
       </View>
     ) : null
@@ -107,6 +133,7 @@ const PendingOrders = () => {
       />
       <FlatList
         style={styles.listContainer}
+        contentContainerStyle={styles.listContent}
         data={filteredOrders}
         renderItem={renderOrderCard}
         keyExtractor={keyExtractor}
@@ -231,10 +258,21 @@ const OrderCard = memo(({
         </View>
         <View style={styles.amountSection}>
           <ThemedText style={styles.amount}>
-            ₹{item.grand_total?.toFixed(2) || item.total?.toFixed(2) || '0.00'}
+            ₹{item.grand_total?.toFixed(2) || '0.00'}
           </ThemedText>
         </View>
       </View>
+
+      {/* Order Items */}
+      {item.items && item.items.length > 0 && (
+        <View style={styles.itemsContainer}>
+          {item.items.map((orderItem, index) => (
+            <ThemedText key={index} style={styles.itemText} numberOfLines={1}>
+              {orderItem.item_name} × {orderItem.qty}
+            </ThemedText>
+          ))}
+        </View>
+      )}
 
       {/* Action Buttons */}
       {renderActionButtons()}
@@ -254,8 +292,11 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1,
+  },
+  listContent: {
     paddingHorizontal: 16,
-    paddingTop: 16, // Add margin at top to separate from filters
+    paddingTop: 16,
+    paddingBottom: 150, // Add extra bottom padding to prevent content going below tabs
   },
   emptyContainer: {
     flex: 1,
@@ -348,6 +389,18 @@ const styles = StyleSheet.create({
     // Override colors for accept/deliver button (blue border, blue bg, white text)
     borderColor: theme.colors.primary,
     backgroundColor: theme.colors.primary,
+  },
+  itemsContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  itemText: {
+    fontSize: 13,
+    color: theme.colors.muted,
+    marginBottom: 4,
   },
 });
 

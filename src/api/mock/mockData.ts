@@ -217,46 +217,66 @@ export const generateMockMenuStats = (items: MenuItem[]): MenuStats => ({
   average_price: parseFloat((items.reduce((sum, item) => sum + parseFloat(item.price.toString()), 0) / items.length).toFixed(2)),
 });
 
-// Mock Bills
+// Mock Bills - Only 2 bills: Electricity and Rent with fine
 export const generateMockBills = (count: number = 20): Bill[] => {
   const bills: Bill[] = [];
-  const categories: Bill['category'][] = ['rent', 'commission', 'subscription', 'penalty', 'other'];
-  const statuses: Bill['status'][] = ['issued', 'paid', 'overdue', 'cancelled'];
   
-  for (let i = 1; i <= count; i++) {
-    const baseAmount = parseFloat(randomFloat(1000, 10000));
-    const fineAmount = Math.random() > 0.7 ? parseFloat(randomFloat(100, 500)) : 0;
-    const totalAmount = baseAmount + fineAmount;
-    const issueDate = randomDate(60);
-    const dueDate = new Date(issueDate);
-    dueDate.setDate(dueDate.getDate() + 15);
-    const dueDateStr = dueDate.toISOString();
-    const isPaid = Math.random() > 0.3;
-    const isOverdue = !isPaid && new Date() > dueDate;
-    
-    bills.push({
-      bill_id: i.toString(),
-      bill_number: `BILL-${new Date().getFullYear()}-${String(i).padStart(4, '0')}`,
-      category: categories[randomInt(0, categories.length - 1)],
-      title: `${categories[randomInt(0, categories.length - 1)].charAt(0).toUpperCase() + categories[randomInt(0, categories.length - 1)].slice(1)} Bill`,
-      amount: baseAmount.toFixed(2),
-      fine_amount: fineAmount.toFixed(2),
-      total_amount: totalAmount.toFixed(2),
-      status: isOverdue ? 'overdue' : (isPaid ? 'paid' : statuses[randomInt(0, statuses.length - 1)]),
-      due_date: dueDateStr,
-      issue_date: issueDate,
-      paid_date: isPaid ? randomDate(30) : null,
-      shop_id: 1,
-      shop_name: 'Demo Restaurant',
-      days_until_due: Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-      days_overdue: isOverdue ? Math.ceil((Date.now() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0,
-      is_overdue: isOverdue,
-      pdf_download_url: `https://mock-api.example.com/bills/${i}/download.pdf`,
-      created_at: issueDate,
-    });
-  }
+  // Bill 1: Electricity
+  const electricityIssueDate = new Date();
+  electricityIssueDate.setDate(electricityIssueDate.getDate() - 10);
+  const electricityDueDate = new Date(electricityIssueDate);
+  electricityDueDate.setDate(electricityDueDate.getDate() + 15);
   
-  return bills.sort((a, b) => new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime());
+  bills.push({
+    bill_id: '1',
+    bill_number: `BILL-${new Date().getFullYear()}-0001`,
+    category: 'other',
+    title: 'Electricity Bill',
+    amount: '3500.00',
+    fine_amount: '0.00',
+    total_amount: '3500.00',
+    status: 'issued',
+    due_date: electricityDueDate.toISOString(),
+    issue_date: electricityIssueDate.toISOString(),
+    paid_date: null,
+    shop_id: 1,
+    shop_name: 'Demo Restaurant',
+    days_until_due: Math.ceil((electricityDueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+    days_overdue: 0,
+    is_overdue: false,
+    pdf_download_url: 'https://mock-api.example.com/bills/1/download.pdf',
+    created_at: electricityIssueDate.toISOString(),
+  });
+  
+  // Bill 2: Rent with Fine (Overdue)
+  const rentIssueDate = new Date();
+  rentIssueDate.setDate(rentIssueDate.getDate() - 25);
+  const rentDueDate = new Date(rentIssueDate);
+  rentDueDate.setDate(rentDueDate.getDate() + 15);
+  const rentIsOverdue = new Date() > rentDueDate;
+  
+  bills.push({
+    bill_id: '2',
+    bill_number: `BILL-${new Date().getFullYear()}-0002`,
+    category: 'rent',
+    title: 'Monthly Rent',
+    amount: '15000.00',
+    fine_amount: '750.00',
+    total_amount: '15750.00',
+    status: 'overdue',
+    due_date: rentDueDate.toISOString(),
+    issue_date: rentIssueDate.toISOString(),
+    paid_date: null,
+    shop_id: 1,
+    shop_name: 'Demo Restaurant',
+    days_until_due: Math.ceil((rentDueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+    days_overdue: rentIsOverdue ? Math.ceil((Date.now() - rentDueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0,
+    is_overdue: rentIsOverdue,
+    pdf_download_url: 'https://mock-api.example.com/bills/2/download.pdf',
+    created_at: rentIssueDate.toISOString(),
+  });
+  
+  return bills;
 };
 
 // Mock Support Tickets

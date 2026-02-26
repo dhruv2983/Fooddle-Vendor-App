@@ -1,4 +1,5 @@
 import { Button } from '@/components/Button';
+import { useNavigation } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { TextInput } from '@/components/TextInput';
 import { ThemedText } from '@/components/ThemedText';
@@ -13,6 +14,7 @@ import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StatusBar,
 import { log } from '@/utils/logger';
 
 const SupportScreen = () => {
+  const navigation = useNavigation();
   const {
     tickets,
     isLoading,
@@ -37,8 +39,27 @@ const SupportScreen = () => {
   });
 
   useEffect(() => {
+    // Hide the tab bar when this screen is focused
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: 'none' }
+    });
+
+    // Show it again when leaving
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: {
+          backgroundColor: theme.colors.white,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          paddingHorizontal: 0,
+        }
+      });
+    };
+  }, [navigation]);
+
+  useEffect(() => {
     fetchTickets();
-  }, []); // fetchTickets is stable
+  }, []);
 
   const handleTicketPress = (ticketId: string) => {
     setSelectedTicketId(ticketId);

@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { theme } from '@/constants/theme';
 
-export type OrderStatus = 'all' | 'received' | 'confirmed' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'received' | 'confirmed' | 'delivered' | 'cancelled';
 
 interface OrderFiltersProps {
   selectedStatus: OrderStatus;
@@ -12,7 +12,7 @@ interface OrderFiltersProps {
 
 const OrderFilters: React.FC<OrderFiltersProps> = ({ selectedStatus, onStatusChange }) => {
   const filterOptions: { key: OrderStatus; label: string; count?: number }[] = [
-    { key: 'all', label: 'All Orders' },
+    { key: 'pending', label: 'Pending' },
     { key: 'received', label: 'Received' },
     { key: 'confirmed', label: 'Confirmed' },
     { key: 'delivered', label: 'Delivered' },

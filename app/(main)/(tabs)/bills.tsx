@@ -1,4 +1,5 @@
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { View, StyleSheet, ScrollView, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -9,6 +10,7 @@ import { theme } from '@/constants/theme';
 import { log } from '@/utils/logger';
 
 const BillsScreen = () => {
+  const navigation = useNavigation();
   const { 
     bills, 
     isLoading, 
@@ -18,13 +20,32 @@ const BillsScreen = () => {
     totalBills 
   } = useBillsStore();
 
+  useEffect(() => {
+    // Hide the tab bar when this screen is focused
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: 'none' }
+    });
+
+    // Show it again when leaving
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: {
+          backgroundColor: theme.colors.white,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          paddingHorizontal: 0,
+        }
+      });
+    };
+  }, [navigation]);
+
   const loadBills = useCallback(async () => {
     try {
       await fetchBills();
     } catch (error) {
       log.error('Failed to load bills', error);
     }
-  }, []); // fetchBills is stable
+  }, []);
 
   useEffect(() => {
     loadBills();
