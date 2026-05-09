@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import { apiService, ApiError } from '@/api/api';
-import { MenuItem, CreateMenuItemRequest, UpdateMenuItemRequest, MenuCategory, MenuStats } from '@/types/menu';
+import { MenuItem, MenuVariant, CreateMenuItemRequest, UpdateMenuItemRequest, UpdateVariantRequest, MenuCategory } from '@/types/menu';
 import { MenuFilters } from '@/config/api';
 import { log } from '@/utils/logger';
 
 interface MenuState {
   menu: MenuItem[];
   categories: MenuCategory[];
-  menuStats: MenuStats | null;
   currentItem: MenuItem | null;
   isLoading: boolean;
   error: string | null;
@@ -24,8 +23,9 @@ interface MenuState {
   updateMenuItem: (id: string, data: UpdateMenuItemRequest) => Promise<void>;
   deleteMenuItem: (id: string) => Promise<void>;
   toggleMenuItemVisibility: (id: string, visible: boolean) => Promise<void>;
+  updateVariant: (productId: string, variantId: string, data: UpdateVariantRequest) => Promise<void>;
+  toggleVariantVisibility: (productId: string, variantId: string, is_available: boolean) => Promise<void>;
   fetchCategories: () => Promise<void>;
-  fetchMenuStats: () => Promise<void>;
   clearError: () => void;
   refreshMenu: () => Promise<void>;
   loadMoreMenu: () => Promise<void>;
@@ -35,7 +35,6 @@ interface MenuState {
 export const useMenuStore = create<MenuState>((set, get) => ({
   menu: [],
   categories: [],
-  menuStats: null,
   currentItem: null,
   isLoading: false,
   error: null,
@@ -72,7 +71,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         }
       }
       
-      // Validate and clean menu items
+      // Validate and clean products
       const validMenu = menu.filter(item => {
         if (!item || typeof item !== 'object' || !item.id) {
           log.warn('Invalid menu item filtered out:', item);
@@ -81,9 +80,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return true;
       }).map(item => ({
         ...item,
-        // Ensure price and mrp are properly handled
-        price: typeof item.price === 'string' ? item.price : String(item.price || 0),
-        mrp: item.mrp ? (typeof item.mrp === 'string' ? item.mrp : String(item.mrp)) : undefined,
+        variants: Array.isArray(item.variants) ? item.variants : [],
       }));
       
       // Handle pagination metadata
@@ -150,17 +147,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       log.debug('Updated menu item response:', updatedItem);
       
       // Ensure the updated item has proper format
-      const formattedItem = {
-        ...updatedItem,
-        price: typeof updatedItem.price === 'string' ? updatedItem.price : String(updatedItem.price || 0),
-        mrp: updatedItem.mrp ? (typeof updatedItem.mrp === 'string' ? updatedItem.mrp : String(updatedItem.mrp)) : undefined,
-      };
-      
       set((state) => ({
-        menu: state.menu.map((item) => 
-          item.id === parseInt(id) ? formattedItem : item
+        menu: state.menu.map((item) =>
+          item.id === parseInt(id) ? { ...updatedItem, variants: Array.isArray(updatedItem.variants) ? updatedItem.variants : item.variants } : item
         ),
-        currentItem: state.currentItem?.id === parseInt(id) ? formattedItem : state.currentItem,
+        currentItem: state.currentItem?.id === parseInt(id) ? updatedItem : state.currentItem,
         isLoading: false,
       }));
     } catch (error) {
@@ -212,6 +203,49 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   
+  updateVariant: async (productId, variantId, data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedVariant = await apiService.updateVariant(variantId, data);
+      set((state) => ({
+        menu: state.menu.map((product) =>
+          product.id === parseInt(productId)
+            ? { ...product, variants: product.variants.map(v => v.id === parseInt(variantId) ? updatedVariant : v) }
+            : product
+        ),
+        isLoading: false,
+      }));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        set({ error: error.message, isLoading: false });
+      } else {
+        set({ error: 'Failed to update variant', isLoading: false });
+      }
+      throw error;
+    }
+  },
+
+  toggleVariantVisibility: async (productId, variantId, is_available) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedVariant = await apiService.toggleVariantVisibility(productId, variantId, is_available);
+      set((state) => ({
+        menu: state.menu.map((product) =>
+          product.id === parseInt(productId)
+            ? { ...product, variants: product.variants.map(v => v.id === parseInt(variantId) ? updatedVariant : v) }
+            : product
+        ),
+        isLoading: false,
+      }));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        set({ error: error.message, isLoading: false });
+      } else {
+        set({ error: 'Failed to toggle variant visibility', isLoading: false });
+      }
+    }
+  },
+
   fetchCategories: async () => {
     try {
       const categories = await apiService.getMenuCategories();
@@ -223,11 +257,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         set({ error: 'Failed to fetch categories' });
       }
     }
-  },
-  
-  fetchMenuStats: async () => {
-    // Menu stats removed - not needed
-    log.debug('Menu stats feature disabled');
   },
   
   clearError: () => {
@@ -245,10 +274,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   
   refreshAll: async () => {
-    // Fetch all data in parallel to avoid duplicate calls
-    await Promise.all([
-      get().fetchMenu(),
-      get().fetchCategories(),
-    ]);
+    await get().fetchMenu();
   },
 }));

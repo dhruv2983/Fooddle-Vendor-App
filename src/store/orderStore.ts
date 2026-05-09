@@ -18,7 +18,7 @@ interface OrderState {
   // Actions
   fetchOrders: (filters?: OrderFilters, append?: boolean) => Promise<{ hasNext: boolean }>;
   fetchOrderById: (id: string) => Promise<void>;
-  updateOrderStatus: (id: string, data: OrderStatusUpdate) => Promise<void>;
+  updateOrderStatus: (id: string, data: OrderStatusUpdate) => Promise<Order>;
   fetchOrderStats: (params?: AnalyticsParams) => Promise<void>;
   getOrderById: (id: string) => Order | undefined;
   clearError: () => void;
@@ -102,8 +102,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const updatedOrder = await apiService.updateOrderStatus(id, data);
-      
-      // Update the order in the orders array
       set((state) => ({
         orders: state.orders.map((order) =>
           order.id === parseInt(id) ? updatedOrder : order
@@ -111,12 +109,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         currentOrder: state.currentOrder?.id === parseInt(id) ? updatedOrder : state.currentOrder,
         isLoading: false,
       }));
+      return updatedOrder;
     } catch (error) {
-      if (error instanceof ApiError) {
-        set({ error: error.message, isLoading: false });
-      } else {
-        set({ error: 'Failed to update order status', isLoading: false });
-      }
+      const message = error instanceof ApiError ? error.message : 'Failed to update order status';
+      set({ error: message, isLoading: false });
+      throw error;
     }
   },
   

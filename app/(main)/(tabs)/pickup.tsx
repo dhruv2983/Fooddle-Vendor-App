@@ -6,7 +6,7 @@ import { theme } from '@/constants/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PendingOrders from '@/components/shop/PendingOrders';
 
-const ShopScreen = () => {
+const PickupOrdersScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
@@ -15,7 +15,7 @@ const ShopScreen = () => {
 
       <Header
         title="Orders"
-        subtitle="Delivery orders"
+        subtitle="Pickup orders"
       />
 
       <View style={styles.searchSection}>
@@ -41,7 +41,7 @@ const ShopScreen = () => {
         </View>
       </View>
 
-      <PendingOrders searchQuery={searchQuery} orderType="delivery" />
+      <PendingOrders searchQuery={searchQuery} orderType="pickup" />
     </ThemedView>
   );
 };
@@ -82,4 +82,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ShopScreen;
+export default PickupOrdersScreen;

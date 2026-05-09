@@ -9,6 +9,7 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  shop_daily_serial: number;
   customer_name: string;
   customer_phone: string;
   customer_address: string;
@@ -18,7 +19,7 @@ export interface Order {
   order_convenience_fee: number;
   discount: number;
   gst: number;
-  grand_total: number;
+  amount: string | number;
   status: 'received' | 'confirmed' | 'delivered' | 'cancelled';
   paid_online: boolean;
   type_delivery: boolean;

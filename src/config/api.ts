@@ -33,9 +33,15 @@ export const API_CONFIG = {
     MENU_CREATE: `/api/vendors/${ENV.API_VERSION}/menu/create/`,
     MENU_ITEM: (id: string) => `/api/vendors/${ENV.API_VERSION}/menu/${id}/`,
     MENU_VISIBILITY: (id: string) => `/api/vendors/${ENV.API_VERSION}/menu/${id}/visibility/`,
+    MENU_VARIANT: (variantId: string) => `/api/vendors/${ENV.API_VERSION}/menu/${variantId}/`,
     MENU_CATEGORIES: `/api/vendors/${ENV.API_VERSION}/menu/categories/`,
-    MENU_STATS: `/api/vendors/${ENV.API_VERSION}/menu/stats/`,
-    
+    // Product Requests
+    PRODUCT_REQUESTS: `/api/vendors/${ENV.API_VERSION}/product-requests/`,
+
+    // Configurations
+    CONFIGURATIONS: `/api/vendors/${ENV.API_VERSION}/configurations/`,
+    CONFIGURATION_UPDATE: (key: string) => `/api/vendors/${ENV.API_VERSION}/configurations/${key}/`,
+
     // Analytics
     ANALYTICS_OVERVIEW: `/api/vendors/${ENV.API_VERSION}/analytics/overview/`,
     ANALYTICS_ORDERS: `/api/vendors/${ENV.API_VERSION}/analytics/orders/`,
@@ -84,7 +90,8 @@ export interface PaginationParams {
 }
 
 export interface OrderFilters extends PaginationParams {
-  status?: 'received' | 'confirmed' | 'delivered' | 'cancelled';
+  status?: 'pending' | 'received' | 'confirmed' | 'delivered' | 'cancelled';
+  shop_daily_serial?: string;
   start_date?: string; // YYYY-MM-DD
   end_date?: string;   // YYYY-MM-DD
   payment_type?: 'online' | 'cash';

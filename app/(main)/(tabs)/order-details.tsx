@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, ScrollView, StatusBar, Linking, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Alert, ScrollView, StatusBar, Linking, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Button } from '@/components/Button';
-import { TextInput } from '@/components/TextInput';
 import { Header } from '@/components/Header';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { useOrderStore } from '@/store/orderStore';
+import { useAuthStore } from '@/store/authStore';
 import { Order } from '@/types/orders';
 import { theme } from '@/constants/theme';
-import { validateOrderId } from '@/utils/validation';
 import { apiService } from '@/api/api';
+import { API_CONFIG } from '@/config/api';
 import { log } from '@/utils/logger';
 
 // Helper function to get status-specific styles
@@ -34,79 +34,47 @@ const getStatusStyle = (status: string) => {
 const OrderDetailsScreen = () => {
   const params = useLocalSearchParams();
   const incomingOrderId = params.orderId as string;
-  
-  const [orderId, setOrderId] = useState<string>(incomingOrderId || '');
+
   const [order, setOrder] = useState<Order | undefined>(undefined);
-  const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [hasSearched, setHasSearched] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [notFound, setNotFound] = useState<boolean>(false);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
-  const [validationError, setValidationError] = useState<string>('');
   const [isGeneratingBill, setIsGeneratingBill] = useState<boolean>(false);
   const { updateOrderStatus } = useOrderStore();
+  const configurations = useAuthStore((state) => state.configurations);
+  const token = useAuthStore((state) => state.token);
+  const skipOrderConfirmation = configurations?.skip_order_confirmation?.is_enabled ?? false;
 
-  // Auto-search if orderId is provided via navigation
   useEffect(() => {
-    if (incomingOrderId && incomingOrderId.trim()) {
-      // Set the order ID and trigger search automatically
-      setOrderId(incomingOrderId.trim());
-      // Small delay to ensure state is updated before search
-      setTimeout(() => {
-        performSearch(incomingOrderId.trim());
-      }, 100);
-    }
+    if (!incomingOrderId?.trim()) return;
+    const fetchOrder = async () => {
+      setIsLoading(true);
+      setNotFound(false);
+      try {
+        const orderData = await apiService.getOrderById(incomingOrderId.trim());
+        if (orderData?.id) {
+          setOrder(orderData);
+        } else {
+          setNotFound(true);
+        }
+      } catch (error) {
+        log.error('Error fetching order', error);
+        setNotFound(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrder();
   }, [incomingOrderId]);
 
-  const performSearch = async (searchOrderId: string) => {
-    // Skip validation for auto-triggered searches from navigation
-    setValidationError('');
-    setIsSearching(true);
-    setHasSearched(false);
-
-    try {
-      // ALWAYS fetch fresh data from API - never use cached data
-      // Add timestamp to bypass any caching mechanisms
-      const orderData = await apiService.getOrderById(searchOrderId);
-      log.debug('Order data received (fresh from API):', orderData);
-      
-      if (orderData && orderData.id) {
-        setOrder(orderData);
-      } else {
-        setOrder(undefined);
-        Alert.alert('Order Not Found', `No order found with Order ID: ${searchOrderId}. Please check the order number and try again.`);
-      }
-      setHasSearched(true);
-    } catch (error) {
-      log.error('Error fetching order', error);
-      setOrder(undefined);
-      setHasSearched(true);
-      Alert.alert('Error', 'Failed to fetch order details. Please try again.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSearchOrder = async () => {
-    // Validate input only for manual searches
-    if (!incomingOrderId) {
-      const validation = validateOrderId(orderId);
-      if (!validation.isValid) {
-        setValidationError(validation.error || '');
-        return;
-      }
-    }
-
-    await performSearch(orderId.trim());
-  };
-
   const handleAcceptOrder = async () => {
-    if (order) {
-      try {
-        await updateOrderStatus(order.id.toString(), { status: 'confirmed' });
-        setOrder({ ...order, status: 'confirmed', is_confirmed: true });
-        Alert.alert('Success', `Order ${order.id} has been accepted and confirmed`);
-      } catch (error) {
-        Alert.alert('Error', 'Failed to accept order. Please try again.');
-      }
+    if (!order) return;
+    try {
+      const updated = await updateOrderStatus(order.id.toString(), { status: 'confirmed' });
+      setOrder(updated);
+      Alert.alert('Success', `Order #${updated.shop_daily_serial ?? updated.id} has been accepted and confirmed`);
+    } catch {
+      Alert.alert('Error', 'Failed to accept order. Please try again.');
     }
   };
 
@@ -115,56 +83,56 @@ const OrderDetailsScreen = () => {
   };
 
   const confirmCancelOrder = async () => {
-    if (order) {
-      try {
-        await updateOrderStatus(order.id.toString(), { status: 'cancelled', reason: 'Cancelled by vendor' });
-        setOrder({ ...order, status: 'cancelled', is_cancelled: true });
-        setShowCancelModal(false);
-        Alert.alert('Success', `Order ${order.id} has been cancelled`);
-      } catch (error) {
-        Alert.alert('Error', 'Failed to cancel order. Please try again.');
-      }
+    if (!order) return;
+    try {
+      const updated = await updateOrderStatus(order.id.toString(), { status: 'cancelled', reason: 'Cancelled by vendor' });
+      setOrder(updated);
+      setShowCancelModal(false);
+      Alert.alert('Success', `Order #${updated.shop_daily_serial ?? updated.id} has been cancelled`);
+    } catch {
+      Alert.alert('Error', 'Failed to cancel order. Please try again.');
     }
   };
 
   const handleDeliverOrder = async () => {
-    if (order) {
-      try {
-        await updateOrderStatus(order.id.toString(), { status: 'delivered' });
-        setOrder({ ...order, status: 'delivered' });
-        Alert.alert('Success', `Order ${order.id} has been marked as delivered`);
-      } catch (error) {
-        Alert.alert('Error', 'Failed to update order status. Please try again.');
-      }
+    if (!order) return;
+    try {
+      const updated = await updateOrderStatus(order.id.toString(), { status: 'delivered' });
+      setOrder(updated);
+      Alert.alert('Success', `Order #${updated.shop_daily_serial ?? updated.id} has been marked as delivered`);
+    } catch {
+      Alert.alert('Error', 'Failed to update order status. Please try again.');
     }
   };
 
   const handleGenerateBill = async () => {
-    if (!order) return;
+    if (!order || !token) return;
 
     setIsGeneratingBill(true);
     try {
-      // Call the generate bill API
-      const response = await fetch(`https://fooddle.in/api/vendors/v1/generate-bill/?entity_type=order&entity_id=${order.id}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Basic bWFuYW4wMzpldnZvNTg1OA==', // You should get this from your auth store
-          'Accept': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/api/vendors/${API_CONFIG.VERSION}/generate-bill/?entity_type=order&entity_id=${order.id}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${token}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
 
       const billData = await response.json();
-      
+
       if (billData.download_url) {
-        const fullDownloadUrl = `https://fooddle.in${billData.download_url}`;
-        
-        // Open the PDF directly in browser/default PDF viewer
-        const supported = await Linking.canOpenURL(fullDownloadUrl);
+        const supported = await Linking.canOpenURL(billData.download_url);
         if (supported) {
-          await Linking.openURL(fullDownloadUrl);
-          Alert.alert('Success', 'Bill downloaded successfully!');
+          await Linking.openURL(billData.download_url);
         } else {
-          Alert.alert('Download URL', `Bill generated: ${fullDownloadUrl}`);
+          Alert.alert('Error', 'Unable to open the bill PDF.');
         }
       } else {
         Alert.alert('Error', 'Failed to generate bill. Please try again.');
@@ -177,91 +145,38 @@ const OrderDetailsScreen = () => {
     }
   };
 
-  const handleNewSearch = () => {
-    setOrder(undefined);
-    setHasSearched(false);
-    setOrderId('');
-    setValidationError('');
-  };
 
   return (
     <ThemedView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={theme.colors.surface} />
-      
-      <Header 
-        title="Order Details Lookup"
-        subtitle="Enter an order ID to view and manage orders"
-      />
+
+      <Header title="Order Details" />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {!order && (
-          <View style={styles.searchSection}>
-            <View style={styles.instructionCard}>
-              <ThemedText variant="title" style={styles.instructionTitle}>
-                Find Your Order
-              </ThemedText>
-              <ThemedText variant="body" style={styles.instructionText}>
-                Enter the order number below to view order details and manage the order status
-              </ThemedText>
-            </View>
-            
-            <View style={styles.searchCard}>
-              <TextInput
-                label="Order Number"
-                placeholder="Enter order number..."
-                value={orderId}
-                onChangeText={setOrderId}
-                keyboardType="numeric"
-                error={validationError}
-                style={styles.searchInput}
-                returnKeyType="search"
-                onSubmitEditing={handleSearchOrder}
-                enablesReturnKeyAutomatically={true}
-              />
-              <Button
-                title={isSearching ? 'Searching...' : 'Find Order'}
-                onPress={handleSearchOrder}
-                disabled={isSearching || !orderId.trim()}
-                variant="primary"
-                size="large"
-              />
-            </View>
+        {isLoading && (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <ThemedText style={styles.loadingText}>Loading order...</ThemedText>
           </View>
         )}
 
-        {hasSearched && !order && (
+        {!isLoading && notFound && (
           <View style={styles.notFoundCard}>
-            <ThemedText variant="title" style={styles.notFoundTitle}>
-              Order Not Found
-            </ThemedText>
+            <ThemedText variant="title" style={styles.notFoundTitle}>Order Not Found</ThemedText>
             <ThemedText variant="body" style={styles.notFoundText}>
-              We couldn&apos;t find an order with number &quot;{orderId}&quot;.
-            </ThemedText>
-            <ThemedText variant="body" style={styles.notFoundHelp}>
-              Please verify the order number with your customer or order system
+              Could not load this order. Please try again.
             </ThemedText>
           </View>
         )}
 
         {order && (
           <>
-            <TouchableOpacity 
-              style={styles.backToSearchLink} 
-              onPress={handleNewSearch}
-              activeOpacity={0.7}
-            >
-              <ThemedText style={styles.backToSearchText}>
-                ← Back to Search
-              </ThemedText>
-            </TouchableOpacity>
-
             <View style={styles.orderCard}>
-              {/* Order Header with ID, Status, and Customer Info */}
             <View style={styles.orderHeader}>
               <View style={styles.orderHeaderTop}>
                 <ThemedText variant="title" style={styles.orderTitle}>
-                  Order #{order.id}
+                  Order #{order.shop_daily_serial ?? order.id}
                 </ThemedText>
                 <View style={[styles.statusBadge, getStatusStyle(order.status)]}>
                   <ThemedText style={styles.statusText}>
@@ -317,7 +232,7 @@ const OrderDetailsScreen = () => {
               <View style={styles.totalRow}>
                 <ThemedText variant="title" style={styles.orderAmountLabel}>Order Amount</ThemedText>
                 <ThemedText variant="title" style={styles.orderAmountValue}>
-                  ₹{order.grand_total.toFixed(2)}
+                  ₹{parseFloat(order.amount as any || 0).toFixed(2)}
                 </ThemedText>
               </View>
             </View>
@@ -332,13 +247,23 @@ const OrderDetailsScreen = () => {
                   size="large"
                   style={styles.actionButton}
                 />
-                <Button
-                  title="Accept Order"
-                  onPress={handleAcceptOrder}
-                  variant="primary"
-                  size="large"
-                  style={styles.actionButton}
-                />
+                {skipOrderConfirmation ? (
+                  <Button
+                    title="Mark as Delivered"
+                    onPress={handleDeliverOrder}
+                    variant="primary"
+                    size="large"
+                    style={styles.actionButton}
+                  />
+                ) : (
+                  <Button
+                    title="Accept Order"
+                    onPress={handleAcceptOrder}
+                    variant="primary"
+                    size="large"
+                    style={styles.actionButton}
+                  />
+                )}
               </View>
             )}
 
@@ -401,7 +326,7 @@ const OrderDetailsScreen = () => {
         <ConfirmationModal
           visible={showCancelModal}
           title="Cancel Order"
-          message={`Are you sure you want to cancel order #${order?.id}? This action cannot be undone.`}
+          message={`Are you sure you want to cancel order #${order?.shop_daily_serial ?? order?.id}? This action cannot be undone.`}
           confirmText="Yes, Cancel Order"
           cancelText="Keep Order"
           confirmVariant="danger"
@@ -422,41 +347,16 @@ const styles = StyleSheet.create({
     padding: theme.layout.containerPadding,
     paddingBottom: theme.spacing.xxxxxxl,
   },
-  instructionCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.l,
-    padding: theme.layout.cardPadding,
-    marginBottom: theme.spacing.l,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  centered: {
+    flex: 1,
     alignItems: 'center',
-    ...theme.shadows.small,
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.xxxxl,
+    gap: theme.spacing.m,
   },
-  instructionTitle: {
-    fontSize: 18,
-    color: theme.colors.dark,
-    textAlign: 'center',
-    marginBottom: theme.spacing.m,
-    fontWeight: '600' as const,
-    lineHeight: 24,
-  },
-  instructionText: {
+  loadingText: {
+    color: theme.colors.muted,
     fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  searchSection: {
-    marginBottom: theme.spacing.xl,
-  },
-  searchCard: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.l,
-    padding: theme.layout.cardPadding,
-    ...theme.shadows.medium,
-  },
-  searchInput: {
-    marginBottom: theme.spacing.xxl,
   },
   notFoundCard: {
     backgroundColor: theme.colors.white,
@@ -475,14 +375,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: theme.spacing.m,
-  },
-  notFoundHelp: {
-    color: theme.colors.primary,
-    textAlign: 'center',
-    fontWeight: '600' as const,
-    backgroundColor: theme.colors.primaryLight,
-    padding: theme.spacing.m,
-    borderRadius: theme.borderRadius.s,
   },
   orderCard: {
     backgroundColor: theme.colors.white,
@@ -504,6 +396,14 @@ const styles = StyleSheet.create({
   },
   orderTitle: {
     color: theme.colors.dark,
+    fontWeight: '700' as const,
+  },
+  customerInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.s,
+    gap: theme.spacing.m,
   },
   statusBadge: {
     paddingHorizontal: theme.spacing.m,
@@ -514,13 +414,6 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 12,
     fontWeight: '600' as const,
-  },
-  customerInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: theme.spacing.s,
-    gap: theme.spacing.m,
   },
   customerCompactText: {
     color: theme.colors.textSecondary,
@@ -563,11 +456,6 @@ const styles = StyleSheet.create({
     color: theme.colors.dark,
     marginBottom: theme.spacing.m,
     fontWeight: '600' as const,
-  },
-  itemsTitle: {
-    color: theme.colors.text,
-    marginBottom: 12,
-    fontWeight: '600',
   },
   itemRow: {
     flexDirection: 'row',
@@ -633,31 +521,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-  },
-  completedActions: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.l,
-    padding: theme.spacing.m,
-    backgroundColor: theme.colors.primaryLight,
-    borderRadius: theme.borderRadius.s,
-  },
-  completedText: {
-    color: theme.colors.primary,
-    fontStyle: 'italic',
-  },
-  newSearchButton: {
-    marginTop: theme.spacing.m,
-  },
-  backToSearchLink: {
-    paddingVertical: theme.spacing.s,
-    paddingHorizontal: theme.spacing.xs,
-    marginBottom: theme.spacing.m,
-    alignSelf: 'flex-start',
-  },
-  backToSearchText: {
-    color: theme.colors.primary,
-    fontSize: 15,
-    fontWeight: '500' as const,
   },
   billButtonInline: {
     minWidth: 100,

@@ -1,103 +1,142 @@
 import React, { useEffect, useCallback, useState, memo } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/Button';
 import { useOrderStore } from '@/store/orderStore';
+import { useAuthStore } from '@/store/authStore';
 import { Order } from '@/types/orders';
 import { theme } from '@/constants/theme';
 import { useRefresh } from '@/hooks/useRefresh';
 import OrderFilters, { OrderStatus } from '@/components/OrderFilters';
-import { log } from '@/utils/logger';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
-const PendingOrders = () => {
-  const { 
-    orders, 
-    isLoading, 
-    fetchOrders, 
-    updateOrderStatus, 
+interface PendingOrdersProps {
+  searchQuery?: string;
+  orderType: 'delivery' | 'pickup';
+}
+
+const PendingOrders: React.FC<PendingOrdersProps> = ({ searchQuery = '', orderType }) => {
+  const {
+    orders,
+    isLoading,
+    fetchOrders,
+    updateOrderStatus,
     loadMoreOrders,
-    pagination 
+    pagination
   } = useOrderStore();
-  
-  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('all');
+
+  const configurations = useAuthStore((state) => state.configurations);
+  const skipOrderConfirmation = configurations?.skip_order_confirmation?.is_enabled ?? false;
+
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('pending');
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const loadOrders = useCallback(async () => {
-    const filters = selectedStatus === 'all' ? {} : { status: selectedStatus as any };
+    const filters: Parameters<typeof fetchOrders>[0] = { status: selectedStatus };
+    if (debouncedSearch) filters.shop_daily_serial = debouncedSearch;
     await fetchOrders(filters);
-  }, [selectedStatus]); // Remove fetchOrders from deps - it's stable from store
+  }, [selectedStatus, debouncedSearch]);
 
   const { isRefreshing, onRefresh } = useRefresh(loadOrders);
 
   useEffect(() => {
     loadOrders();
-  }, [selectedStatus]); // Only reload when status changes
+  }, [selectedStatus, debouncedSearch]);
 
   const handleStatusChange = useCallback((status: OrderStatus) => {
     setSelectedStatus(status);
   }, []);
 
   const ordersArray = Array.isArray(orders) ? orders : [];
-  
-  // Filter orders based on selected status
-  const filteredOrders = selectedStatus === 'all' 
-    ? ordersArray 
-    : ordersArray.filter(order => order.status === selectedStatus);
 
-  const handleAcceptOrder = (orderId: string) => {
-    updateOrderStatus(orderId, { status: 'confirmed' });
+  // Filter by status, order type (delivery/pickup), and search query
+  const filteredOrders = ordersArray.filter(order => {
+    if (orderType === 'delivery' && !order.type_delivery) return false;
+    if (orderType === 'pickup' && order.type_delivery) return false;
+    return true;
+  });
+
+  const handleAcceptOrder = async (orderId: string) => {
+    try {
+      await updateOrderStatus(orderId, { status: 'confirmed' });
+      loadOrders();
+    } catch {
+      Alert.alert('Error', 'Failed to accept order. Please try again.');
+    }
   };
 
-  const handleCancelOrder = (orderId: string) => {
-    updateOrderStatus(orderId, { status: 'cancelled', reason: 'Order cancelled by vendor' });
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      await updateOrderStatus(orderId, { status: 'cancelled', reason: 'Order cancelled by vendor' });
+      loadOrders();
+    } catch {
+      Alert.alert('Error', 'Failed to cancel order. Please try again.');
+    }
   };
 
-  const handleDeliverOrder = (orderId: string) => {
-    updateOrderStatus(orderId, { status: 'delivered' });
+  const handleDeliverOrder = async (orderId: string) => {
+    try {
+      await updateOrderStatus(orderId, { status: 'delivered' });
+      loadOrders();
+    } catch {
+      Alert.alert('Error', 'Failed to mark order as delivered. Please try again.');
+    }
   };
 
   const handleLoadMore = useCallback(() => {
     if (pagination.hasNext && !isLoading) {
       loadMoreOrders();
     }
-  }, [pagination.hasNext, isLoading]); // Remove loadMoreOrders - it's stable
+  }, [pagination.hasNext, isLoading]);
 
   const handleOrderPress = (orderId: string) => {
-    // Navigate to order details page and pass the order ID
     router.push(`/(main)/(tabs)/order-details?orderId=${orderId}`);
   };
 
   const renderOrderCard = useCallback(({ item }: { item: Order }) => (
-    <OrderCard 
-      item={item} 
+    <OrderCard
+      item={item}
       onPress={() => handleOrderPress(item.id.toString())}
       onAccept={() => handleAcceptOrder(item.id.toString())}
       onCancel={() => handleCancelOrder(item.id.toString())}
       onDeliver={() => handleDeliverOrder(item.id.toString())}
+      skipOrderConfirmation={skipOrderConfirmation}
     />
-  ), [handleOrderPress, handleAcceptOrder, handleCancelOrder, handleDeliverOrder]);
+  ), [handleOrderPress, handleAcceptOrder, handleCancelOrder, handleDeliverOrder, skipOrderConfirmation]);
 
   const keyExtractor = useCallback((item: Order) => `order-${item.id}`, []);
 
   const ListEmptyComponent = useCallback(() => (
     !isLoading ? (
       <View style={styles.emptyContainer}>
-        <ThemedText variant="subtitle" style={styles.emptyTitle}>
-          {selectedStatus === 'all' ? 'No orders found' : `No ${selectedStatus} orders found`}
+        <Ionicons name="checkmark-circle" size={96} color={theme.colors.primary} style={styles.emptyIcon} />
+        <ThemedText style={styles.emptyTitle}>
+          {selectedStatus === 'pending'
+            ? `All clear! No pending ${orderType} orders`
+            : `No ${selectedStatus} ${orderType} orders`}
+        </ThemedText>
+        <ThemedText style={styles.emptySubtitle}>
+          New orders will appear here
         </ThemedText>
       </View>
     ) : null
-  ), [isLoading, selectedStatus]);
+  ), [isLoading, selectedStatus, orderType]);
 
   const ListFooterComponent = useCallback(() => (
-    isLoading ? (
-      <View style={styles.loadingContainer}>
-        <ThemedText variant="caption" style={styles.loadingText}>
-          Loading orders...
-        </ThemedText>
+    isLoading && filteredOrders.length > 0 ? (
+      <View style={styles.loadingFooter}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
       </View>
     ) : null
-  ), [isLoading]);
+  ), [isLoading, filteredOrders.length]);
+
+  const isInitialLoading = isLoading && filteredOrders.length === 0 && !isRefreshing;
 
   return (
     <View style={styles.container}>
@@ -105,65 +144,69 @@ const PendingOrders = () => {
         selectedStatus={selectedStatus}
         onStatusChange={handleStatusChange}
       />
-      <FlatList
-        style={styles.listContainer}
-        data={filteredOrders}
-        renderItem={renderOrderCard}
-        keyExtractor={keyExtractor}
-        refreshControl={
-          <RefreshControl 
-            refreshing={isRefreshing} 
-            onRefresh={onRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
-          />
-        }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        removeClippedSubviews={true}
-        initialNumToRender={10}
-        updateCellsBatchingPeriod={50}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={ListEmptyComponent}
-        ListFooterComponent={ListFooterComponent}
-      />
+      {isInitialLoading ? (
+        <View style={styles.fullscreenLoader}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          style={styles.listContainer}
+          contentContainerStyle={[styles.listContent, filteredOrders.length === 0 && styles.listContentEmpty]}
+          data={filteredOrders}
+          renderItem={renderOrderCard}
+          keyExtractor={keyExtractor}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          removeClippedSubviews={true}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={ListEmptyComponent}
+          ListFooterComponent={ListFooterComponent}
+        />
+      )}
     </View>
   );
 };
 
-const OrderCard = memo(({ 
-  item, 
+const OrderCard = memo(({
+  item,
   onPress,
-  onAccept, 
-  onCancel, 
-  onDeliver 
-}: { 
+  onAccept,
+  onCancel,
+  onDeliver,
+  skipOrderConfirmation,
+}: {
   item: Order;
-  onPress: () => void; 
+  onPress: () => void;
   onAccept: () => void;
   onCancel: () => void;
   onDeliver: () => void;
+  skipOrderConfirmation: boolean;
 }) => {
   const getStatusTextColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'received':
-        return '#F57C00'; // Orange
-      case 'confirmed':
-        return '#1976D2'; // Blue
-      case 'delivered':
-        return '#388E3C'; // Green
-      case 'cancelled':
-        return '#D32F2F'; // Red
-      default:
-        return theme.colors.muted;
+      case 'received':  return '#F57C00';
+      case 'confirmed': return '#1976D2';
+      case 'delivered': return '#388E3C';
+      case 'cancelled': return '#D32F2F';
+      default:          return theme.colors.muted;
     }
   };
 
   const renderActionButtons = () => {
     const status = item.status.toLowerCase();
-    
+
     if (status === 'received') {
       return (
         <View style={styles.actions}>
@@ -175,8 +218,8 @@ const OrderCard = memo(({
             style={[styles.actionButton, styles.cancelButton]}
           />
           <Button
-            title="Accept"
-            onPress={onAccept}
+            title={skipOrderConfirmation ? 'Deliver' : 'Accept'}
+            onPress={skipOrderConfirmation ? onDeliver : onAccept}
             variant="primary"
             size="small"
             style={[styles.actionButton, styles.acceptButton]}
@@ -184,7 +227,7 @@ const OrderCard = memo(({
         </View>
       );
     }
-    
+
     if (status === 'confirmed') {
       return (
         <View style={styles.actions}>
@@ -206,16 +249,14 @@ const OrderCard = memo(({
       );
     }
 
-    // Terminal states - no buttons shown
     return null;
   };
 
   return (
     <TouchableOpacity style={styles.orderCard} onPress={onPress} activeOpacity={0.7}>
-      {/* Order Header: ID | Customer | Status | Amount */}
       <View style={styles.orderHeader}>
         <View style={styles.orderIdSection}>
-          <ThemedText style={styles.orderId}>#{item.id}</ThemedText>
+          <ThemedText style={styles.orderId}>#{item.shop_daily_serial ?? item.id}</ThemedText>
         </View>
         <View style={styles.customerSection}>
           <ThemedText style={styles.customerName} numberOfLines={1}>
@@ -231,20 +272,29 @@ const OrderCard = memo(({
         </View>
         <View style={styles.amountSection}>
           <ThemedText style={styles.amount}>
-            ₹{item.grand_total?.toFixed(2) || item.total?.toFixed(2) || '0.00'}
+            ₹{parseFloat(item.amount as any || 0).toFixed(2)}
           </ThemedText>
         </View>
       </View>
 
-      {/* Action Buttons */}
+      {item.items && item.items.length > 0 && (
+        <View style={styles.itemsContainer}>
+          {item.items.map((orderItem, index) => (
+            <ThemedText key={index} style={styles.itemText} numberOfLines={1}>
+              {orderItem.item_name} × {orderItem.qty}
+            </ThemedText>
+          ))}
+        </View>
+      )}
+
       {renderActionButtons()}
     </TouchableOpacity>
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if order data changes
   return prevProps.item.id === nextProps.item.id &&
          prevProps.item.status === nextProps.item.status &&
-         prevProps.item.grand_total === nextProps.item.grand_total;
+         prevProps.item.amount === nextProps.item.amount &&
+         prevProps.skipOrderConfirmation === nextProps.skipOrderConfirmation;
 });
 
 const styles = StyleSheet.create({
@@ -254,8 +304,19 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1,
+  },
+  listContent: {
     paddingHorizontal: 16,
-    paddingTop: 16, // Add margin at top to separate from filters
+    paddingTop: 16,
+    paddingBottom: 150,
+  },
+  fullscreenLoader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContentEmpty: {
+    flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
@@ -263,16 +324,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 48,
   },
-  emptyTitle: {
-    textAlign: 'center',
-    color: theme.colors.muted,
+  emptyIcon: {
+    marginBottom: 16,
   },
-  loadingContainer: {
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: theme.colors.muted,
+    textAlign: 'center',
+  },
+  loadingFooter: {
     paddingVertical: 20,
     alignItems: 'center',
-  },
-  loadingText: {
-    color: theme.colors.muted,
   },
   orderCard: {
     backgroundColor: theme.colors.white,
@@ -340,14 +409,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cancelButton: {
-    // Override colors for cancel button (blue border, white bg, blue text)
     borderColor: theme.colors.primary,
     backgroundColor: theme.colors.white,
   },
   acceptButton: {
-    // Override colors for accept/deliver button (blue border, blue bg, white text)
     borderColor: theme.colors.primary,
     backgroundColor: theme.colors.primary,
+  },
+  itemsContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  itemText: {
+    fontSize: 13,
+    color: theme.colors.muted,
+    marginBottom: 4,
   },
 });
 

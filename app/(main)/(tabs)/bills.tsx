@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { View, StyleSheet, ScrollView, StatusBar, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -9,14 +10,29 @@ import { theme } from '@/constants/theme';
 import { log } from '@/utils/logger';
 
 const BillsScreen = () => {
-  const { 
-    bills, 
-    isLoading, 
+  const navigation = useNavigation();
+  const {
+    bills,
+    isLoading,
     isRefreshing,
     fetchBills, 
     refreshBills,
     totalBills 
   } = useBillsStore();
+
+  useEffect(() => {
+    navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: {
+          backgroundColor: theme.colors.white,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          paddingHorizontal: 0,
+        }
+      });
+    };
+  }, [navigation]);
 
   const loadBills = useCallback(async () => {
     try {
@@ -24,7 +40,7 @@ const BillsScreen = () => {
     } catch (error) {
       log.error('Failed to load bills', error);
     }
-  }, []); // fetchBills is stable
+  }, []);
 
   useEffect(() => {
     loadBills();
@@ -126,7 +142,7 @@ const BillsScreen = () => {
             </ThemedText>
           )}
           
-          {bill.status !== 'paid' && (
+          {/* {bill.status !== 'paid' && (
             <TouchableOpacity 
               style={styles.payButton}
               activeOpacity={0.7}
@@ -135,7 +151,7 @@ const BillsScreen = () => {
                 Pay Now
               </ThemedText>
             </TouchableOpacity>
-          )}
+          )} */}
         </View>
       </View>
     </TouchableOpacity>
@@ -449,20 +465,6 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     marginTop: 2,
     fontWeight: '500',
-  },
-  payButton: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 12,
-    alignSelf: 'flex-end',
-  },
-  payButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
   },
   // Loading & Empty States
   loadingContainer: {

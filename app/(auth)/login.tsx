@@ -1,168 +1,230 @@
 import React, { useState } from 'react';
-import { StyleSheet, Alert, View, KeyboardAvoidingView, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  Image,
+  StatusBar,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { TextInput } from '@/components/TextInput';
 import { Button } from '@/components/Button';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/constants/theme';
-import { validateEmail, validateRequired } from '@/utils/validation';
+import { validateRequired } from '@/utils/validation';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 const LoginScreen = () => {
-  const [username, setUsername] = useState('vendor');
-  const [password, setPassword] = useState('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
   const handleLogin = async () => {
-    // Validate inputs
     const usernameValidation = validateRequired(username, 'Username');
     const passwordValidation = validateRequired(password, 'Password');
-    
+
     setUsernameError(usernameValidation.isValid ? '' : usernameValidation.error || '');
     setPasswordError(passwordValidation.isValid ? '' : passwordValidation.error || '');
-    
-    if (!usernameValidation.isValid || !passwordValidation.isValid) {
-      return;
-    }
+
+    if (!usernameValidation.isValid || !passwordValidation.isValid) return;
 
     await login({ username, password });
-    if (error) {
-      Alert.alert('Login Failed', error);
-    }
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView 
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
+
+      <KeyboardAvoidingView
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.content}>
-          <View style={styles.logoContainer}>
-            <ThemedText variant="header" style={styles.title}>
-              VendorApp
-            </ThemedText>
-            <ThemedText variant="subtitle" style={styles.subtitle}>
-              Professional Restaurant Management System
-            </ThemedText>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Logo section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoWrap}>
+              <Image
+                source={require('../../assets/images/f_logo_no_bg.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <ThemedText style={styles.appName}>Fooddle Vendor</ThemedText>
+            <ThemedText style={styles.tagline}>Restaurant management, simplified</ThemedText>
           </View>
 
-          <View style={styles.formContainer}>
-            <View style={styles.card}>
-              <ThemedText variant="title" style={styles.formTitle}>
-                Welcome Back
-              </ThemedText>
-              
+          {/* Form card */}
+          <View style={styles.card}>
+            <ThemedText style={styles.cardTitle}>Sign In</ThemedText>
+            <ThemedText style={styles.cardSubtitle}>Enter your credentials to continue</ThemedText>
+
+            <View style={styles.fields}>
               <TextInput
                 label="Username"
                 placeholder="Enter your username"
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
+                autoCorrect={false}
                 error={usernameError}
               />
-              
+
               <TextInput
                 label="Password"
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 error={passwordError}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setShowPassword(v => !v)} hitSlop={8}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={20}
+                      color={theme.colors.muted}
+                    />
+                  </TouchableOpacity>
+                }
               />
-
-              {error && (
-                <View style={styles.errorContainer}>
-                  <ThemedText style={styles.errorText}>
-                    {error}
-                  </ThemedText>
-                </View>
-              )}
-
-              <Button 
-                title={isLoading ? 'Signing in...' : 'Sign In'} 
-                onPress={handleLogin} 
-                disabled={isLoading}
-                size="large"
-              />
-
-              <View style={styles.demoContainer}>
-                <ThemedText variant="caption" style={styles.demoText}>
-                  Demo credentials pre-filled
-                </ThemedText>
-              </View>
             </View>
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle-outline" size={16} color={theme.colors.danger} />
+                <ThemedText style={styles.errorText}>{error}</ThemedText>
+              </View>
+            ) : null}
+
+            <Button
+              title={isLoading ? 'Signing in…' : 'Sign In'}
+              onPress={handleLogin}
+              disabled={isLoading}
+              size="large"
+              style={styles.signInButton}
+            />
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </ThemedView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: theme.colors.light,
+    backgroundColor: '#F9FAFB',
   },
-  keyboardView: {
+  flex: {
     flex: 1,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.l,
-    paddingTop: theme.spacing.xxl,
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
   },
-  logoContainer: {
+
+  // Logo section
+  logoSection: {
     alignItems: 'center',
-    marginTop: theme.spacing.xxl,
-    marginBottom: theme.spacing.xxl,
+    marginTop: 32,
+    paddingBottom: 48,
   },
-  title: {
-    textAlign: 'center',
-    marginBottom: theme.spacing.s,
-    color: theme.colors.primary,
-  },
-  subtitle: {
-    textAlign: 'center',
-    color: theme.colors.muted,
-  },
-  formContainer: {
-    flex: 1,
+  logoWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    backgroundColor: theme.colors.white,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.l,
-    padding: theme.spacing.xl,
-    ...theme.shadows.medium,
+  logo: {
+    width: 72,
+    height: 72,
   },
-  formTitle: {
-    textAlign: 'center',
-    marginBottom: theme.spacing.xl,
+  appName: {
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: '700',
     color: theme.colors.dark,
+    letterSpacing: -0.5,
+    marginBottom: 6,
   },
-  errorContainer: {
+  tagline: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.muted,
+    letterSpacing: 0.1,
+  },
+
+  // Form card
+  card: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 5,
+  },
+  cardTitle: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+    color: theme.colors.dark,
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.muted,
+    marginBottom: 24,
+  },
+  fields: {
+    gap: 4,
+  },
+
+  // Error
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: '#FEF2F2',
-    borderColor: theme.colors.danger,
     borderWidth: 1,
-    borderRadius: theme.borderRadius.s,
-    padding: theme.spacing.m,
-    marginBottom: theme.spacing.m,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 4,
   },
   errorText: {
+    flex: 1,
     color: theme.colors.danger,
-    fontSize: 14,
-    textAlign: 'center',
+    fontSize: 13,
   },
-  demoContainer: {
-    marginTop: theme.spacing.l,
-    alignItems: 'center',
-  },
-  demoText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
+
+  signInButton: {
+    marginTop: 20,
   },
 });
 

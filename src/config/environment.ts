@@ -23,7 +23,7 @@ const getEnvironment = (): Environment => {
 // Environment-specific configurations
 const configs: Record<Environment, EnvironmentConfig> = {
   development: {
-    API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000',
+    API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://fooddle.in',
     API_VERSION: process.env.EXPO_PUBLIC_API_VERSION || 'v1',
     API_TIMEOUT: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT || '30000'),
     ENVIRONMENT: 'development',
@@ -39,7 +39,7 @@ const configs: Record<Environment, EnvironmentConfig> = {
     LOG_LEVEL: 'info',
   },
   production: {
-    API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.yourdomain.com',
+    API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://fooddle.in',
     API_VERSION: process.env.EXPO_PUBLIC_API_VERSION || 'v1',
     API_TIMEOUT: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT || '15000'),
     ENVIRONMENT: 'production',

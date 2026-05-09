@@ -11,8 +11,10 @@ import { validateRequired } from '@/utils/validation';
 import React, { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { log } from '@/utils/logger';
+import { useNavigation } from '@react-navigation/native';
 
 const SupportScreen = () => {
+  const navigation = useNavigation();
   const {
     tickets,
     isLoading,
@@ -37,8 +39,22 @@ const SupportScreen = () => {
   });
 
   useEffect(() => {
+    navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: {
+          backgroundColor: theme.colors.white,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          paddingHorizontal: 0,
+        }
+      });
+    };
+  }, [navigation]);
+
+  useEffect(() => {
     fetchTickets();
-  }, []); // fetchTickets is stable
+  }, []);
 
   const handleTicketPress = (ticketId: string) => {
     setSelectedTicketId(ticketId);
@@ -473,29 +489,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
-  categoriesCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.m,
-    padding: theme.spacing.l,
-    marginBottom: theme.spacing.l,
-    ...theme.shadows.small,
-  },
-  categoriesTitle: {
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.l,
-  },
-  categoryItem: {
-    paddingVertical: theme.spacing.m,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  categoryTitle: {
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.s,
-  },
-  categoryDescription: {
-    color: theme.colors.textSecondary,
-  },
   // Tickets Section
   ticketsSection: {
     marginBottom: 24,
@@ -581,20 +574,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#CBD5E1',
     fontWeight: '300',
-  },
-  contactCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.m,
-    padding: theme.spacing.l,
-    ...theme.shadows.small,
-  },
-  contactTitle: {
-    color: theme.colors.dark,
-    marginBottom: theme.spacing.l,
-  },
-  contactText: {
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.s,
   },
   // Empty & Loading States
   emptyTickets: {

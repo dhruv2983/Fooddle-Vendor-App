@@ -1,31 +1,50 @@
-import React, { useEffect, useState, useCallback, memo } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  TouchableOpacity,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useMenuStore } from '@/store/menuStore';
-import { MenuItem as MenuItemType } from '@/types/menu';
+import { MenuItem as MenuItemType, MenuVariant } from '@/types/menu';
 import { theme } from '@/constants/theme';
 import { useRefresh } from '@/hooks/useRefresh';
 import MenuItemCard from '@/components/MenuItemCard';
 import MenuItemEditScreen from '@/screens/MenuItemEditScreen';
+import ProductRequests from '@/components/shop/ProductRequests';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
-// Removed old MenuItem component - now using MenuItemCard
+type Tab = 'products' | 'requests';
 
-// Removed old edit form - now using MenuItemEditScreen
+interface CategoryGroup {
+  name: string;
+  items: MenuItemType[];
+}
+
+function groupByCategory(items: MenuItemType[]): CategoryGroup[] {
+  const map: Record<string, MenuItemType[]> = {};
+  for (const item of items) {
+    const cat = item.category_name || 'Uncategorized';
+    if (!map[cat]) map[cat] = [];
+    map[cat].push(item);
+  }
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, items]) => ({ name, items }));
+}
 
 const Menu = () => {
-  const { 
-    menu, 
-    isLoading, 
-    fetchMenu, 
-    loadMoreMenu,
-    pagination,
-    refreshAll 
-  } = useMenuStore();
-  const [editingItem, setEditingItem] = useState<MenuItemType | null>(null);
+  const { menu, isLoading, refreshAll } = useMenuStore();
+  const [activeTab, setActiveTab] = useState<Tab>('products');
+  const [editing, setEditing] = useState<{ item: MenuItemType; variant: MenuVariant } | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
 
   const loadMenu = useCallback(async () => {
-    await refreshAll(); // Load menu and categories
-  }, []); // refreshAll is stable from store
+    await refreshAll();
+  }, []);
 
   const { isRefreshing, onRefresh } = useRefresh(loadMenu);
 
@@ -33,91 +52,62 @@ const Menu = () => {
     loadMenu();
   }, [loadMenu]);
 
-  const handleEditItem = (item: MenuItemType) => {
-    setEditingItem(item);
+  const toggleCategory = (name: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
+  const toggleProduct = (productId: number) => {
+    setExpandedProducts(prev => {
+      const next = new Set(prev);
+      next.has(productId) ? next.delete(productId) : next.add(productId);
+      return next;
+    });
   };
 
   const handleEditSuccess = () => {
-    setEditingItem(null);
-    // Refresh menu data to show updates
+    setEditing(null);
     loadMenu();
   };
 
-  const handleEditCancel = () => {
-    setEditingItem(null);
-  };
-
-  const handleLoadMore = useCallback(() => {
-    if (pagination.hasNext && !isLoading) {
-      loadMoreMenu();
-    }
-  }, [pagination.hasNext, isLoading]); // loadMoreMenu is stable
-
-  const renderMenuItem = useCallback(({ item }: { item: MenuItemType }) => (
-    <MenuItemCard 
-      item={item} 
-      onPress={handleEditItem}
-    />
-  ), [handleEditItem]);
-
-  const keyExtractor = useCallback((item: MenuItemType) => `menu-${item.id}`, []);
-
-  const ListFooterComponent = useCallback(() => (
-    pagination.hasNext ? (
-      <View style={styles.loadingMore}>
-        <ThemedText variant="caption" style={styles.loadingText}>
-          {isLoading ? 'Loading more items...' : 'Pull up to load more'}
-        </ThemedText>
-      </View>
-    ) : null
-  ), [pagination.hasNext, isLoading]);
-
-  const ListEmptyComponent = useCallback(() => (
-    !isLoading ? (
-      <View style={styles.emptyContainer}>
-        <ThemedText style={styles.emptyText}>
-          No menu items found
-        </ThemedText>
-      </View>
-    ) : null
-  ), [isLoading]);
-
-  // FIXED: Moved early return AFTER all hooks are defined
-  if (isLoading && (!Array.isArray(menu) || !menu.length)) {
+  if (editing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ThemedText variant="subtitle">Loading menu...</ThemedText>
-      </View>
-    );
-  }
-
-  // Process menu items from API response
-  const validMenuItems = Array.isArray(menu) ? menu.filter(item => {
-    // Handle both valid objects and invalid data
-    if (!item || typeof item !== 'object' || !item.id) {
-      return false;
-    }
-    return true;
-  }) : [];
-
-  // FIXED: Moved early return for editingItem AFTER all hooks
-  if (editingItem) {
-    return (
-      <MenuItemEditScreen 
-        item={editingItem} 
-        onBack={handleEditCancel}
+      <MenuItemEditScreen
+        item={editing.item}
+        variant={editing.variant}
+        onBack={() => setEditing(null)}
         onSuccess={handleEditSuccess}
       />
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <FlatList
-        data={validMenuItems}
-        keyExtractor={keyExtractor}
-        renderItem={renderMenuItem}
-        contentContainerStyle={styles.listContainer}
+  const validItems = Array.isArray(menu) ? menu.filter(i => i && i.id) : [];
+  const categories = groupByCategory(validItems);
+
+  const renderProducts = () => {
+    if (isLoading && validItems.length === 0) {
+      return (
+        <View style={styles.centered}>
+          <ThemedText variant="subtitle">Loading menu...</ThemedText>
+        </View>
+      );
+    }
+
+    if (!isLoading && validItems.length === 0) {
+      return (
+        <View style={styles.centered}>
+          <ThemedText style={styles.emptyText}>No menu items found</ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -126,17 +116,77 @@ const Menu = () => {
             tintColor={theme.colors.primary}
           />
         }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        maxToRenderPerBatch={8}
-        windowSize={8}
-        removeClippedSubviews={true}
-        initialNumToRender={8}
-        updateCellsBatchingPeriod={50}
-        ListFooterComponent={ListFooterComponent}
-        ListEmptyComponent={ListEmptyComponent}
         showsVerticalScrollIndicator={false}
-      />
+      >
+        {categories.map(({ name, items }) => {
+          const isOpen = expandedCategories.has(name);
+          const visibleCount = items.filter(i => i.visible).length;
+
+          return (
+            <View key={name} style={styles.categoryCard}>
+              <TouchableOpacity
+                style={styles.categoryHeader}
+                onPress={() => toggleCategory(name)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.categoryLeft}>
+                  <ThemedText style={styles.categoryName}>{name}</ThemedText>
+                  <ThemedText style={styles.categoryMeta}>
+                    {items.length} {items.length === 1 ? 'product' : 'products'} · {visibleCount} visible
+                  </ThemedText>
+                </View>
+                <Ionicons
+                  name={isOpen ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={theme.colors.primary}
+                />
+              </TouchableOpacity>
+
+              {isOpen && (
+                <View style={styles.productList}>
+                  {items.map(item => (
+                    <MenuItemCard
+                      key={item.id}
+                      item={item}
+                      expanded={expandedProducts.has(item.id)}
+                      onToggle={() => toggleProduct(item.id)}
+                      onEdit={(item, variant) => setEditing({ item, variant })}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Tab bar */}
+      <View style={styles.tabBar}>
+        {(['products', 'requests'] as Tab[]).map(tab => {
+          const isActive = activeTab === tab;
+          const label = tab === 'products' ? 'Products' : 'Requests';
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tabItem, isActive && styles.tabItemActive]}
+              onPress={() => setActiveTab(tab)}
+              activeOpacity={0.75}
+            >
+              <ThemedText style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                {label}
+              </ThemedText>
+              {isActive && <View style={styles.tabUnderline} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Tab content */}
+      {activeTab === 'products' ? renderProducts() : <ProductRequests />}
     </View>
   );
 };
@@ -146,17 +196,51 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  listContainer: {
-    paddingBottom: theme.spacing.l,
+
+  // Tab bar
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0EAF5',
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    position: 'relative',
+  },
+  tabItemActive: {},
+  tabLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.muted,
+  },
+  tabLabelActive: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+  },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: '15%',
+    right: '15%',
+    height: 2,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 2,
+  },
+
+  // Products tab
+  scrollContainer: {
+    flex: 1,
     backgroundColor: theme.colors.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme.spacing.l,
+  scrollContent: {
+    padding: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.m,
   },
-  emptyContainer: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -168,14 +252,46 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  loadingMore: {
-    padding: theme.spacing.l,
-    alignItems: 'center',
+
+  // Category card
+  categoryCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.m,
+    borderWidth: 1,
+    borderColor: '#E0EAF5',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  loadingText: {
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: 14,
+  },
+  categoryLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  categoryName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    textTransform: 'capitalize',
+  },
+  categoryMeta: {
+    fontSize: 12,
     color: theme.colors.muted,
-    fontStyle: 'italic',
-    fontSize: 14,
+  },
+
+  // Product list inside category
+  productList: {
+    borderTopWidth: 1,
+    borderTopColor: '#E0EAF5',
   },
 });
 

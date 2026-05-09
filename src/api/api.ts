@@ -1,7 +1,7 @@
 import { API_CONFIG, ApiResponse, API_ERROR_CODES, OrderFilters, MenuFilters, AnalyticsParams } from '@/config/api';
-import { LoginRequest, User, AuthCredentials, HealthCheckResponse } from '@/types/auth';
+import { LoginRequest, User, AuthCredentials, HealthCheckResponse, ShopConfigurations, VendorConfiguration } from '@/types/auth';
 import { Order, OrderStatusUpdate, OrderStats } from '@/types/orders';
-import { MenuItem, CreateMenuItemRequest, UpdateMenuItemRequest, MenuCategory, MenuStats } from '@/types/menu';
+import { MenuItem, MenuVariant, CreateMenuItemRequest, UpdateMenuItemRequest, UpdateVariantRequest, MenuCategory, ProductRequest } from '@/types/menu';
 import { Shop, UpdateShopRequest, ShopStatus, UpdateShopStatusRequest, Analytics } from '@/types/shop';
 import { log } from '@/utils/logger';
 
@@ -152,27 +152,27 @@ class ApiService {
   }
 
   // Authentication & Health
-  async login({ username, password }: LoginRequest): Promise<{ user: User; token: string }> {
+  async login({ username, password }: LoginRequest): Promise<{ user: User; token: string; configurations?: ShopConfigurations }> {
     this.setCredentials(username, password);
-    
+
     try {
       const healthData = await this.makeRequest<HealthCheckResponse>(API_CONFIG.ENDPOINTS.HEALTH);
-      
-      // Create user object from health check response
+
       const user: User = {
-        id: '1', // You might want to get this from a separate endpoint
+        id: '1',
         name: healthData.user,
-        email: username, // Assuming username is email
+        email: username,
         shop: {
-          id: 1, // You might want to extract this from shop data
+          id: 1,
           name: healthData.shop,
-          region_name: '', // Would come from shop details
+          region_name: '',
         }
       };
 
       return {
         user,
-        token: this.credentials!, // Using Basic Auth credentials as token
+        token: this.credentials!,
+        configurations: healthData.configurations,
       };
     } catch (error) {
       this.clearCredentials();
@@ -220,7 +220,6 @@ class ApiService {
   }
 
   async getOrderById(id: string): Promise<Order> {
-    // Add cache-busting timestamp to ensure fresh data on every request
     const cacheBuster = `_t=${Date.now()}`;
     const endpoint = API_CONFIG.ENDPOINTS.ORDER_DETAILS(id);
     const endpointWithCache = endpoint.includes('?') ? `${endpoint}&${cacheBuster}` : `${endpoint}?${cacheBuster}`;
@@ -277,12 +276,39 @@ class ApiService {
     });
   }
 
+  async updateVariant(variantId: string, data: UpdateVariantRequest): Promise<MenuVariant> {
+    return this.makeRequest<MenuVariant>(API_CONFIG.ENDPOINTS.MENU_VARIANT(variantId), {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async toggleVariantVisibility(productId: string, variantId: string, is_available: boolean): Promise<MenuVariant> {
+    return this.makeRequest<MenuVariant>(API_CONFIG.ENDPOINTS.MENU_VARIANT(variantId), {
+      method: 'PUT',
+      body: JSON.stringify({ is_available }),
+    });
+  }
+
   async getMenuCategories(): Promise<MenuCategory[]> {
     return this.makeRequest<MenuCategory[]>(API_CONFIG.ENDPOINTS.MENU_CATEGORIES);
   }
 
-  async getMenuStats(): Promise<MenuStats> {
-    return this.makeRequest<MenuStats>(API_CONFIG.ENDPOINTS.MENU_STATS);
+  async getProductRequests(): Promise<ProductRequest[]> {
+    const response = await this.makeRequest<{ requests: ProductRequest[] }>(API_CONFIG.ENDPOINTS.PRODUCT_REQUESTS);
+    return response?.requests ?? [];
+  }
+
+  // Configurations
+  async getConfigurations(): Promise<VendorConfiguration[]> {
+    return this.makeRequest<VendorConfiguration[]>(API_CONFIG.ENDPOINTS.CONFIGURATIONS);
+  }
+
+  async updateConfiguration(key: string, is_enabled: boolean): Promise<VendorConfiguration> {
+    return this.makeRequest<VendorConfiguration>(API_CONFIG.ENDPOINTS.CONFIGURATION_UPDATE(key), {
+      method: 'PATCH',
+      body: JSON.stringify({ is_enabled }),
+    });
   }
 
   // Analytics

@@ -6,16 +6,18 @@ type CustomTextInputProps = TextInputProps & {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 };
 
-export const TextInput: React.FC<CustomTextInputProps> = ({ 
-  style, 
-  label, 
-  error, 
-  icon, 
+export const TextInput: React.FC<CustomTextInputProps> = ({
+  style,
+  label,
+  error,
+  icon,
+  rightIcon,
   onFocus,
   onBlur,
-  ...props 
+  ...props
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -55,12 +57,17 @@ export const TextInput: React.FC<CustomTextInputProps> = ({
           </View>
         )}
         <RNTextInput
-          style={[getInputStyle(), icon ? styles.inputWithIcon : {}, style]}
+          style={[getInputStyle(), icon ? styles.inputWithIcon : {}, rightIcon ? styles.inputWithRightIcon : {}, style]}
           placeholderTextColor={theme.colors.muted}
           onFocus={handleFocus}
           onBlur={handleBlur}
           {...props}
         />
+        {rightIcon && (
+          <View style={styles.rightIconContainer}>
+            {rightIcon}
+          </View>
+        )}
       </View>
       {error && (
         <Text style={styles.errorText}>{error}</Text>
@@ -106,6 +113,16 @@ const styles = StyleSheet.create({
   },
   inputWithIcon: {
     paddingLeft: theme.spacing.xxxxl,
+  },
+  inputWithRightIcon: {
+    paddingRight: theme.spacing.xxxxl,
+  },
+  rightIconContainer: {
+    position: 'absolute',
+    right: theme.spacing.m,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    zIndex: 1,
   },
   iconContainer: {
     position: 'absolute',
