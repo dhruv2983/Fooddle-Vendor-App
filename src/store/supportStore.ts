@@ -88,14 +88,8 @@ export const useSupportStore = create<SupportState>((set, get) => ({
     set({ isCreating: true });
     try {
       const newTicket = await supportAPI.createTicket(ticketData);
-      
-      // Add to the beginning of tickets list
-      set((state) => ({
-        tickets: [newTicket, ...state.tickets],
-        totalTickets: state.totalTickets + 1,
-        isCreating: false,
-      }));
-      
+      set({ isCreating: false });
+      await get().fetchTickets(1);
       return newTicket;
     } catch (error) {
       set({ isCreating: false });
